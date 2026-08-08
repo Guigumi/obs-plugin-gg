@@ -38,9 +38,9 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define TRAIL_DURATION_DEFAULT 0.25f
 #define TRAIL_DURATION_MIN 0.1f
 #define TRAIL_DURATION_MAX 10.0f
-#define TRAIL_SPACING_DEFAULT 0.5f
+#define TRAIL_SPACING_DEFAULT 10.0f
 #define TRAIL_SPACING_MIN 0.1f
-#define TRAIL_SPACING_MAX 10.0f
+#define TRAIL_SPACING_MAX 256.0f
 #define TRAIL_SIZE_DEFAULT_PCT 100
 #define TRAIL_SIZE_MIN_PCT 10
 #define TRAIL_SIZE_MAX_PCT 200
@@ -65,7 +65,9 @@ struct mouse_overlay_gg_data {
 	gs_eparam_t *trail_effect_opacity;
 
 	float cursor_size;
+	bool cursor_enabled;
 	bool trail_enabled;
+	bool trail_shrink;
 	float trail_duration;
 	float trail_spacing;
 	float trail_size_pct;
@@ -93,6 +95,7 @@ static void mouse_overlay_get_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_double(settings, "cursor_size",
 				   CURSOR_SIZE_DEFAULT);
+	obs_data_set_default_bool(settings, "cursor_enabled", true);
 	obs_data_set_default_int(settings, "trail_points",
 				 (int)TRAIL_POINTS_DEFAULT);
 	obs_data_set_default_double(settings, "trail_duration",
@@ -100,6 +103,7 @@ static void mouse_overlay_get_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "trail_spacing",
 				   TRAIL_SPACING_DEFAULT);
 	obs_data_set_default_bool(settings, "trail_enabled", true);
+	obs_data_set_default_bool(settings, "trail_shrink", true);
 	obs_data_set_default_int(settings, "trail_size",
 				 TRAIL_SIZE_DEFAULT_PCT);
 	obs_data_set_default_int(settings, "trail_opacity",
@@ -113,10 +117,15 @@ static obs_properties_t *mouse_overlay_get_properties(void *data)
 	UNUSED_PARAMETER(data);
 
 	obs_properties_t *props = obs_properties_create();
-	obs_properties_add_int(props, "cursor_size", obs_module_text("CursorSize"),
+	obs_properties_t *cursor = obs_properties_create();
+	obs_properties_add_group(props, "cursor_enabled",
+				 obs_module_text("Cursor"),
+				 OBS_GROUP_CHECKABLE, cursor);
+	obs_properties_add_int(cursor, "cursor_size",
+			       obs_module_text("CursorSize"),
 			       (int)CURSOR_SIZE_MIN, (int)CURSOR_SIZE_MAX, 1);
 
-obs_properties_t *const trail = obs_properties_create();
+	obs_properties_t *const trail = obs_properties_create();
 	obs_properties_add_group(props, "trail_enabled",
 				 obs_module_text("Trail"),
 				 OBS_GROUP_CHECKABLE, trail);
@@ -135,6 +144,8 @@ obs_properties_t *const trail = obs_properties_create();
 	obs_properties_add_float(trail, "trail_spacing",
 				obs_module_text("TrailSpacing"),
 				TRAIL_SPACING_MIN, TRAIL_SPACING_MAX, 0.1f);
+	obs_properties_add_bool(trail, "trail_shrink",
+				obs_module_text("TrailShrink"));
 	obs_property_t *fade = obs_properties_add_list(
 		trail, "trail_fade", obs_module_text("TrailFade"),
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -156,14 +167,19 @@ static void mouse_overlay_update(void *data, obs_data_t *settings)
 	if (!shdata->cursor_size)
 		shdata->cursor_size = CURSOR_SIZE_DEFAULT;
 
+	shdata->cursor_enabled = obs_data_get_bool(settings, "cursor_enabled");
+
+	shdata->trail_enabled = obs_data_get_bool(settings, "trail_enabled");
+
+	shdata->trail_shrink = obs_data_get_bool(settings, "trail_shrink");
+
 	shdata->trail_points = (uint32_t)obs_data_get_int(settings, "trail_points");
 	if (shdata->trail_points > TRAIL_POINTS_MAX)
 		shdata->trail_points = TRAIL_POINTS_MAX;
 
-	shdata->trail_enabled = obs_data_get_bool(settings, "trail_enabled");
-
 	shdata->trail_size_pct = (float)obs_data_get_int(settings, "trail_size");
-	shdata->trail_opacity_pct = (float)obs_data_get_int(settings, "trail_opacity");
+	shdata->trail_opacity_pct =
+		(float)obs_data_get_int(settings, "trail_opacity");
 
 	shdata->trail_fade = (int)obs_data_get_int(settings, "trail_fade");
 
@@ -385,20 +401,22 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 	if (!shdata->trail_image.texture && shdata->trail_image.loaded)
 		gs_image_file_init_texture(&shdata->trail_image);
 
-	if (!shdata->cursor_image.texture)
-		return;
+	gs_effect_t *default_effect = NULL;
+	gs_technique_t *default_tech = NULL;
+	gs_eparam_t *default_image_param = NULL;
+	if (shdata->cursor_enabled && shdata->cursor_image.texture) {
+		default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+		if (default_effect) {
+			default_tech = gs_effect_get_technique(
+				default_effect, "Draw");
+			if (default_tech)
+				default_image_param = gs_effect_get_param_by_name(
+					default_effect, "image");
+		}
+	}
 
-	gs_effect_t *const default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
-	if (!default_effect)
+	if (!default_effect && !(shdata->trail_enabled && shdata->trail_image.texture))
 		return;
-
-	gs_technique_t *const default_tech =
-		gs_effect_get_technique(default_effect, "Draw");
-	if (!default_tech)
-		return;
-
-	gs_eparam_t *const default_image_param =
-		gs_effect_get_param_by_name(default_effect, "image");
 
 	gs_blend_state_push();
 	gs_blend_function(GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
@@ -445,10 +463,14 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 					const float opacity =
 						fade * (shdata->trail_opacity_pct /
 							100.0f);
-					const float trail_size =
-						shdata->cursor_size *
-						(shdata->trail_size_pct /
-						 100.0f);
+					float trail_size = shdata->cursor_size *
+					   (shdata->trail_size_pct / 100.0f);
+					/* Shrink with age so the trail tapers
+					 * out instead of ending abruptly. */
+					if (shdata->trail_shrink)
+						trail_size *= t;
+					if (trail_size < 1.0f)
+						continue;
 					mouse_overlay_draw_sprite(
 						shdata->trail_effect_image,
 						shdata->trail_effect_opacity,
@@ -462,19 +484,21 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 		}
 	}
 
-	/* Draw the cursor with full opacity. */
-	const size_t default_passes = gs_technique_begin(default_tech);
-	for (size_t i = 0; i < default_passes; i++) {
-		gs_technique_begin_pass(default_tech, i);
-		mouse_overlay_draw_sprite(default_image_param, NULL,
-					  shdata->cursor_image.texture,
-					  shdata->cursor_x, shdata->cursor_y,
-					  shdata->cursor_size, 1.0f);
-		gs_technique_end_pass(default_tech);
+	if (shdata->cursor_enabled && default_tech) {
+		/* Draw the cursor with full opacity. */
+		const size_t default_passes = gs_technique_begin(default_tech);
+		for (size_t i = 0; i < default_passes; i++) {
+			gs_technique_begin_pass(default_tech, i);
+			mouse_overlay_draw_sprite(default_image_param, NULL,
+						  shdata->cursor_image.texture,
+						  shdata->cursor_x,
+						  shdata->cursor_y,
+						  shdata->cursor_size, 1.0f);
+			gs_technique_end_pass(default_tech);
+		}
+		gs_technique_end(default_tech);
+		gs_effect_set_texture_srgb(default_image_param, NULL);
 	}
-	gs_technique_end(default_tech);
-
-	gs_effect_set_texture_srgb(default_image_param, NULL);
 
 	gs_blend_state_pop();
 }
