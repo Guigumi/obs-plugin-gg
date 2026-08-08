@@ -108,6 +108,21 @@ A estrutura exata pode ser ajustada ao template oficial vigente do OBS no moment
 - Vincular `OBS::libobs` e `user32`.
 - Confirmar que um modulo vazio carrega no OBS sem erros.
 
+**Observacao (validada no OBS 32.2.1 Windows):** plugins de usuario
+sao escaneados de `%ProgramData%\obs-studio\plugins\<modulo>` (via
+`GetProgramDataPath`/`CSIDL_COMMON_APPDATA`), nao de `%APPDATA%`. O
+caminho binario e `...\bin\64bit\`, os dados de locale ficam em
+`...\data\locale\`, e o OBS precisa ser iniciado com o diretorio de
+trabalho em `C:\Program Files\obs-studio\bin\64bit` para localizar o
+resto dos seus proprios dados.
+
+**Recursos de GPU:** criar texturas em `create` falha (sem contexto
+grafico ativo). Criar sob demanda no primeiro `video_render`. Ao chamar
+`gs_texture_create` com dados embutidos, passe um ponteiro para a
+variavel de dados (`const uint8_t *data = tex_data; ... &data`); passar
+`(const uint8_t **)&array` faz o D3D11 ler os primeiros bytes como
+endereco e falhar com `E_INVALIDARG` (0x80070057).
+
 ### 2. Registrar a fonte
 
 - Implementar a entrada do modulo com `OBS_DECLARE_MODULE`.
