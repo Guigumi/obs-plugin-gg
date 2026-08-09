@@ -44,6 +44,10 @@ target_sources(
           src/keyboard-overlay.c
           src/keyboard-capture-win32.c
           src/mouse-overlay.c
+          src/mouse-overlay-cursor.c
+          src/mouse-overlay-trail.c
+          src/mouse-overlay-click.c
+          src/mouse-overlay-resources.c
           src/mouse-capture-win32.c
 )
 
