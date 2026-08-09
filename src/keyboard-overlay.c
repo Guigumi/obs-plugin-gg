@@ -37,7 +37,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #endif
 
 #define KEY_SIZE_DEFAULT 64.0f
-#define KEY_SIZE_MIN 24.0f
+#define KEY_SIZE_MIN 8.0f
 #define KEY_SIZE_MAX 256.0f
 #define KEY_SPACING_DEFAULT 8.0f
 #define KEY_SPACING_MIN 0.0f
@@ -55,6 +55,8 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define KEY_LABEL_INACTIVE_COLOR 0xFFFFFF
 #define KEY_LABEL_ACTIVE_COLOR 0x202020
 #define KEY_LABEL_FONT_SIZE_DEFAULT 36
+#define KEY_LABEL_REFERENCE_SIZE 64.0f
+#define KEY_LABEL_SUPERSAMPLE 4u
 
 #define KEY_FEEDBACK_COLOR 0
 #define KEY_FEEDBACK_PULSE 1
@@ -178,10 +180,11 @@ static obs_properties_t *keyboard_overlay_get_properties(void *data)
 	return props;
 }
 
-static gs_texture_t *keyboard_overlay_create_label_texture(const char *text, obs_data_t *font, uint32_t size)
+static gs_texture_t *keyboard_overlay_create_label_texture(const char *text, obs_data_t *font, float key_size)
 {
-	if (!text || !*text || !font || !size)
+	if (!text || !*text || !font || key_size <= 0.0f)
 		return NULL;
+	const uint32_t texture_size = (uint32_t)ceilf(key_size * KEY_LABEL_SUPERSAMPLE);
 
 	wchar_t *wide_text = NULL;
 	wchar_t *wide_face = NULL;
@@ -194,8 +197,8 @@ static gs_texture_t *keyboard_overlay_create_label_texture(const char *text, obs
 
 	BITMAPINFO bitmap_info = {0};
 	bitmap_info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bitmap_info.bmiHeader.biWidth = (LONG)size;
-	bitmap_info.bmiHeader.biHeight = -(LONG)size;
+	bitmap_info.bmiHeader.biWidth = (LONG)texture_size;
+	bitmap_info.bmiHeader.biHeight = -(LONG)texture_size;
 	bitmap_info.bmiHeader.biPlanes = 1;
 	bitmap_info.bmiHeader.biBitCount = 32;
 	bitmap_info.bmiHeader.biCompression = BI_RGB;
@@ -203,10 +206,13 @@ static gs_texture_t *keyboard_overlay_create_label_texture(const char *text, obs
 	void *pixels = NULL;
 	HDC dc = CreateCompatibleDC(NULL);
 	HBITMAP bitmap = dc ? CreateDIBSection(dc, &bitmap_info, DIB_RGB_COLORS, &pixels, NULL, 0) : NULL;
-	const int font_size = (int)obs_data_get_int(font, "size");
+	const int configured_font_size = (int)obs_data_get_int(font, "size");
+	const float relative_font_size =
+		(configured_font_size > 0 ? configured_font_size : KEY_LABEL_FONT_SIZE_DEFAULT) * key_size /
+		KEY_LABEL_REFERENCE_SIZE;
+	const int font_size = (int)fmaxf(1.0f, roundf(relative_font_size * KEY_LABEL_SUPERSAMPLE));
 	const int64_t font_flags = obs_data_get_int(font, "flags");
-	HFONT gdi_font = CreateFontW(-(font_size > 0 ? font_size : KEY_LABEL_FONT_SIZE_DEFAULT), 0, 0, 0,
-				     (font_flags & OBS_FONT_BOLD) ? FW_BOLD : FW_NORMAL,
+	HFONT gdi_font = CreateFontW(-font_size, 0, 0, 0, (font_flags & OBS_FONT_BOLD) ? FW_BOLD : FW_NORMAL,
 				     (font_flags & OBS_FONT_ITALIC) != 0, (font_flags & OBS_FONT_UNDERLINE) != 0,
 				     (font_flags & OBS_FONT_STRIKEOUT) != 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
 				     CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, wide_face);
@@ -214,15 +220,15 @@ static gs_texture_t *keyboard_overlay_create_label_texture(const char *text, obs
 	if (dc && bitmap && pixels && gdi_font) {
 		HGDIOBJ old_bitmap = SelectObject(dc, bitmap);
 		HGDIOBJ old_font = SelectObject(dc, gdi_font);
-		PatBlt(dc, 0, 0, (int)size, (int)size, BLACKNESS);
+		PatBlt(dc, 0, 0, (int)texture_size, (int)texture_size, BLACKNESS);
 		SetBkMode(dc, OPAQUE);
 		SetBkColor(dc, RGB(0, 0, 0));
 		SetTextColor(dc, RGB(255, 255, 255));
-		RECT rect = {0, 0, (LONG)size, (LONG)size};
+		RECT rect = {0, 0, (LONG)texture_size, (LONG)texture_size};
 		DrawTextW(dc, wide_text, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
 		uint8_t *pixel = pixels;
-		for (size_t i = 0; i < (size_t)size * size; i++, pixel += 4) {
+		for (size_t i = 0; i < (size_t)texture_size * texture_size; i++, pixel += 4) {
 			uint8_t coverage = pixel[0] > pixel[1] ? pixel[0] : pixel[1];
 			if (pixel[2] > coverage)
 				coverage = pixel[2];
@@ -234,7 +240,7 @@ static gs_texture_t *keyboard_overlay_create_label_texture(const char *text, obs
 
 		const uint8_t *levels[] = {pixels};
 		obs_enter_graphics();
-		texture = gs_texture_create(size, size, GS_BGRA, 1, levels, 0);
+		texture = gs_texture_create(texture_size, texture_size, GS_BGRA, 1, levels, 0);
 		obs_leave_graphics();
 		SelectObject(dc, old_font);
 		SelectObject(dc, old_bitmap);
@@ -254,10 +260,9 @@ static gs_texture_t *keyboard_overlay_create_label_texture(const char *text, obs
 static void keyboard_overlay_update_labels(struct keyboard_overlay_gg_data *keyboard, obs_data_t *settings)
 {
 	obs_data_t *font = obs_data_get_obj(settings, "keyboard_font");
-	const uint32_t texture_size = (uint32_t)ceilf(keyboard->key_size);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		const char *text = obs_data_get_string(settings, key_character_settings[i]);
-		gs_texture_t *texture = keyboard_overlay_create_label_texture(text, font, texture_size);
+		gs_texture_t *texture = keyboard_overlay_create_label_texture(text, font, keyboard->key_size);
 		obs_enter_graphics();
 		gs_texture_destroy(keyboard->label_textures[i]);
 		keyboard->label_textures[i] = texture;
