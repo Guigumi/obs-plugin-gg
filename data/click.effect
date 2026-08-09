@@ -21,12 +21,29 @@ ClickVertInOut VSClick(ClickVertInOut vert_in)
 	return vert_out;
 }
 
-float4 PSDrawClick(ClickVertInOut vert_in) : TARGET
+float4 PSDrawSprite(ClickVertInOut vert_in) : TARGET
 {
 	float4 rgba = image.Sample(click_sampler, vert_in.uv);
 	rgba.rgb *= rgba.a * opacity;
 	rgba.a *= opacity;
 	return rgba;
+}
+
+float4 PSDrawClick(ClickVertInOut vert_in) : TARGET
+{
+	float4 rgba = image.Sample(click_sampler, vert_in.uv);
+	rgba.rgb *= opacity;
+	rgba.a *= opacity;
+	return rgba;
+}
+
+technique DrawSprite
+{
+	pass
+	{
+		vertex_shader = VSClick(vert_in);
+		pixel_shader  = PSDrawSprite(vert_in);
+	}
 }
 
 technique DrawClick
