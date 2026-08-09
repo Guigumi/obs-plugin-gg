@@ -60,10 +60,9 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define CLICK_DURATION_DEFAULT 0.50f
 #define CLICK_DURATION_MIN 0.1f
 #define CLICK_DURATION_MAX 2.0f
-#define CLICK_SIZE_DEFAULT 64.0f
-#define CLICK_SIZE_MIN 8
-#define CLICK_SIZE_MAX 256
+#define CLICK_OPACITY_MIN_PCT 0
 #define CLICK_OPACITY_DEFAULT_PCT 25
+#define CLICK_OPACITY_MAX_PCT 100
 #define CLICK_ANIM_EXPAND 0
 #define CLICK_ANIM_CONTRACT 1
 #define CLICK_ANIM_PULSE 2
@@ -116,7 +115,6 @@ struct mouse_overlay_gg_data {
 	bool click_left;
 	bool click_right;
 	float click_duration;
-	float click_size;
 	float click_opacity_pct;
 	int click_anim;
 	size_t click_count;
@@ -171,6 +169,18 @@ static const char *mouse_overlay_get_name(void *type_data)
 	return obs_module_text("SourceName");
 }
 
+static const char *mouse_overlay_get_dark_icon(void *type_data)
+{
+	UNUSED_PARAMETER(type_data);
+	return obs_module_file("icons/mouse-dark.svg");
+}
+
+static const char *mouse_overlay_get_light_icon(void *type_data)
+{
+	UNUSED_PARAMETER(type_data);
+	return obs_module_file("icons/mouse-light.svg");
+}
+
 static void mouse_overlay_get_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_double(settings, "cursor_size", CURSOR_SIZE_DEFAULT);
@@ -187,7 +197,6 @@ static void mouse_overlay_get_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "click_left", true);
 	obs_data_set_default_bool(settings, "click_right", true);
 	obs_data_set_default_double(settings, "click_duration", CLICK_DURATION_DEFAULT);
-	obs_data_set_default_int(settings, "click_size", (int)CLICK_SIZE_DEFAULT);
 	obs_data_set_default_int(settings, "click_opacity", CLICK_OPACITY_DEFAULT_PCT);
 	obs_data_set_default_int(settings, "click_anim", CLICK_ANIM_DEFAULT);
 }
@@ -223,9 +232,8 @@ static obs_properties_t *mouse_overlay_get_properties(void *data)
 	obs_properties_add_group(props, "click_enabled", obs_module_text("Clicks"), OBS_GROUP_CHECKABLE, click);
 	obs_properties_add_bool(click, "click_left", obs_module_text("ClickLeft"));
 	obs_properties_add_bool(click, "click_right", obs_module_text("ClickRight"));
-	obs_properties_add_int_slider(click, "click_size", obs_module_text("ClickSize"), CLICK_SIZE_MIN, CLICK_SIZE_MAX,
-				      1);
-	obs_properties_add_int_slider(click, "click_opacity", obs_module_text("ClickOpacity"), 10, 100, 1);
+	obs_properties_add_int_slider(click, "click_opacity", obs_module_text("ClickOpacity"), CLICK_OPACITY_MIN_PCT,
+				      CLICK_OPACITY_MAX_PCT, 1);
 	obs_properties_add_float_slider(click, "click_duration", obs_module_text("ClickDuration"), CLICK_DURATION_MIN,
 					CLICK_DURATION_MAX, 0.05f);
 	obs_property_t *click_anim = obs_properties_add_list(click, "click_anim", obs_module_text("ClickAnim"),
@@ -274,9 +282,6 @@ static void mouse_overlay_update(void *data, obs_data_t *settings)
 	shdata->click_duration = (float)obs_data_get_double(settings, "click_duration");
 	if (shdata->click_duration <= 0.0f)
 		shdata->click_duration = CLICK_DURATION_DEFAULT;
-	shdata->click_size = (float)obs_data_get_int(settings, "click_size");
-	if (shdata->click_size <= 0.0f)
-		shdata->click_size = CLICK_SIZE_DEFAULT;
 	shdata->click_opacity_pct = (float)obs_data_get_int(settings, "click_opacity");
 	shdata->click_anim = (int)obs_data_get_int(settings, "click_anim");
 	if (!shdata->click_enabled) {
@@ -539,9 +544,8 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 
 	gs_effect_t *const trail_effect = shdata->trail_effect;
 	gs_effect_t *const click_effect = shdata->click_effect;
-	gs_technique_t *const sprite_tech = click_effect ? gs_effect_get_technique(click_effect, "DrawSprite") : NULL;
 	gs_technique_t *const click_tech = click_effect ? gs_effect_get_technique(click_effect, "DrawClick") : NULL;
-	const bool draw_cursor = shdata->cursor_enabled && shdata->cursor_image.texture && sprite_tech;
+	const bool draw_cursor = shdata->cursor_enabled && shdata->cursor_image.texture && click_tech;
 	const bool draw_trail = trail_effect && shdata->trail_count > 0 && shdata->trail_points > 0;
 	const bool left_held = shdata->click_enabled && shdata->click_left && shdata->left_down;
 	const bool right_held = shdata->click_enabled && shdata->click_right && shdata->right_down;
@@ -600,22 +604,22 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 
 	if (draw_cursor) {
 		/* Draw the main cursor before click textures overlay it. */
-		const size_t cursor_passes = gs_technique_begin(sprite_tech);
+		const size_t cursor_passes = gs_technique_begin(click_tech);
 		for (size_t i = 0; i < cursor_passes; i++) {
-			gs_technique_begin_pass(sprite_tech, i);
+			gs_technique_begin_pass(click_tech, i);
 			mouse_overlay_draw_sprite(shdata->click_effect_image, shdata->click_effect_opacity,
 						  shdata->cursor_image.texture, shdata->cursor_x, shdata->cursor_y,
 						  shdata->cursor_size, 1.0f);
-			gs_technique_end_pass(sprite_tech);
+			gs_technique_end_pass(click_tech);
 		}
-		gs_technique_end(sprite_tech);
+		gs_technique_end(click_tech);
 	}
 
 	/* Draw click textures last so they overlay the main cursor. */
 	if (draw_clicks) {
 		const uint64_t now_ns = os_gettime_ns();
 		const float duration = shdata->click_duration;
-		const float base_size = shdata->click_size;
+		const float base_size = shdata->cursor_size;
 
 		const size_t click_passes = gs_technique_begin(click_tech);
 		for (size_t i = 0; i < click_passes; i++) {
@@ -680,4 +684,7 @@ struct obs_source_info mouse_overlay_gg_source_info = {
 	.get_height = mouse_overlay_get_height,
 	.video_tick = mouse_overlay_video_tick,
 	.video_render = mouse_overlay_video_render,
+	.icon_type = OBS_ICON_TYPE_CUSTOM,
+	.get_dark_icon = mouse_overlay_get_dark_icon,
+	.get_light_icon = mouse_overlay_get_light_icon,
 };
