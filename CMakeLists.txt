@@ -37,6 +37,7 @@ endif()
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE src/plugin-main.c
+          src/mouse-overlay.c
           src/mouse-capture-win32.c
 )
 
