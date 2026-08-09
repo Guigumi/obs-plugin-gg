@@ -1,69 +1,101 @@
-# Mouse Overlay GG - Validacao pendente
+# Keyboard Overlay GG - Plano de melhorias
 
 ## Objetivo atual
 
-Validar visualmente a implementacao modular do mouse e o novo modo de cursor para jogos antes de retomar melhorias
-do teclado.
+Evoluir o overlay de teclado de um conjunto fixo de quatro teclas para layouts de jogo mais flexiveis, com captura
+confiavel, desenho procedural e configuracao clara, sem regredir o comportamento atual de WASD.
 
-As etapas concluidas de limpeza, logica, helpers, limites e separacao em modulos foram removidas deste documento.
+## Estado atual
 
-## Estrutura atual
+- Layout fixo de `W`, `A`, `S` e `D`.
+- Setas podem funcionar como aliases de WASD.
+- Tamanho, espacamento, rotacao, opacidades, cor, fonte e caracteres sao configuraveis.
+- Feedback disponivel por circulo suave, borda pulsante ou ambos.
+- Rotulos sao renderizados em texturas com supersampling.
+- Captura atual usa `GetAsyncKeyState` a cada `video_tick`.
+- A aparencia principal depende de `data/images/key-main.png`.
 
-```text
-src/
-|-- mouse-overlay.c
-|-- mouse-overlay.h
-|-- mouse-overlay-internal.h
-|-- mouse-overlay-cursor.c
-|-- mouse-overlay-cursor.h
-|-- mouse-overlay-trail.c
-|-- mouse-overlay-trail.h
-|-- mouse-overlay-click.c
-|-- mouse-overlay-click.h
-|-- mouse-overlay-resources.c
-`-- mouse-overlay-resources.h
-```
+## Decisoes iniciais
 
-## Validacao visual
+- Definir o primeiro conjunto expandido de teclas: `WASD`, `Espaco`, `Shift`, `Ctrl`, `Q`, `E`, `R`, `F`, `Tab`,
+  `Caps Lock` e numeros de `1` a `5`.
+- Definir os presets iniciais: `WASD`, `ESDF`, `Setas`, `Numpad` e `Personalizado`.
+- Escolher entre Raw Input de teclado e `WH_KEYBOARD_LL`, priorizando confiabilidade, compatibilidade com jogos e
+  ausencia de interferencia com outros plugins.
+- Definir se a primeira iteracao permite apenas presets ou tambem posicionamento individual das teclas.
 
-- Testar cursor nos limites de `4px` e `256px`.
-- Testar trilha com duracoes de `0.05s` e `30s`.
-- Testar cliques com duracoes de `0.05s` e `5s`.
-- Testar movimentos lentos, rapidos e saltos longos do cursor.
-- Confirmar que a trilha mantem espacamento uniforme em diferentes taxas de frame.
-- Confirmar que a trilha antiga desaparece suavemente ao sair do monitor, sem criar uma linha ao retornar.
-- Testar troca, desconexao e reconexao de monitor.
-- Confirmar que nenhuma animacao de clique ultrapassa o tamanho do `cursor-main`.
-- Confirmar que o clique procedural permanece suave entre `4px` e `256px`, sem serrilhado dos antigos PNGs.
-- Confirmar que um clique solto permanece na posicao em que ocorreu.
-- Confirmar que a animacao de entrada acontece apenas uma vez e termina em escala `1.0`.
-- Confirmar que o efeito permanece estatico e acompanha o cursor enquanto o botao estiver segurado.
-- Confirmar que o fade-out inicia somente ao soltar e permanece na posicao de soltura.
-- Confirmar que clique segurado nao duplica a animacao e o indicador estatico.
-- Testar cliques esquerdo e direito simultaneos.
-- Testar habilitar e desabilitar cursor, trilha e cliques durante o uso.
-- Confirmar os modos `Automatico`, `Desktop` e `Jogo`, incluindo fallback para Desktop quando Raw Input nao estiver
-  disponivel.
-- Em modo Automatico, testar jogos em tela cheia e em janela com cursor oculto, incluindo pausas longas sem movimento.
-- Confirmar que navegador, apresentacao, RDP e maquina virtual nao ativam o modo Jogo indevidamente.
-- Em modo Jogo, validar sensibilidade entre `0.1` e `5.0` e wrap horizontal, vertical e nos quatro cantos.
-- Confirmar que cursor, trilha e cliques sao recortados nos limites da fonte durante o wrap, sem vazamento na cena.
-- Testar perda de foco, menus com cursor visivel e retorno ao jogo sem saltos ou movimento acumulado.
+## Fase 1 - Arquitetura e captura
+
+- Separar responsabilidades hoje concentradas em `keyboard-overlay.c`:
+  - `keyboard-overlay.c`: ciclo de vida e integracao com OBS.
+  - `keyboard-overlay-internal.h`: estado compartilhado da fonte.
+  - `keyboard-overlay-layout.c/h`: presets, dimensoes e posicoes.
+  - `keyboard-overlay-keys.c/h`: estado e animacao das teclas.
+  - `keyboard-overlay-resources.c/h`: shader, rotulos e recursos graficos.
+  - `keyboard-capture-win32.c`: captura de entrada do Windows.
+- Manter `video_tick` e `video_render` sem alocacoes no caminho normal.
+- Substituir `GetAsyncKeyState` pelo metodo de captura escolhido.
+- Compartilhar eventos entre varias fontes sem uma fonte consumir a entrada das demais.
+- Tratar pressionamentos e solturas rapidos, teclas simultaneas, auto-repeat e perda de foco.
+- Garantir inicializacao e encerramento seguros, sem hooks, handles ou threads remanescentes.
+
+## Fase 2 - Layouts e configuracao
+
+- Representar cada tecla com codigo de captura, rotulo, posicao, tamanho e estado de visibilidade.
+- Adicionar presets para os layouts definidos na fase inicial.
+- Preservar o layout WASD atual como padrao e manter aliases de setas quando aplicavel.
+- Permitir mostrar ou ocultar teclas individualmente.
+- Permitir caracteres personalizados para todas as teclas visiveis.
+- Avaliar offsets ou coordenadas individuais para o modo `Personalizado`.
+- Atualizar automaticamente as dimensoes da fonte conforme layout, tamanho, espacamento e rotacao.
+- Organizar as propriedades do OBS para evitar uma lista extensa e confusa de campos.
+- Avaliar importacao e exportacao do layout personalizado em JSON somente se o editor justificar essa complexidade.
+
+## Fase 3 - Aparencia procedural
+
+- Substituir `key-main.png` por uma tecla procedural com cantos arredondados.
+- Preservar escala suave entre os tamanhos minimo e maximo.
+- Adicionar animacao curta de pressionamento com escala e retorno, sem alterar as dimensoes da fonte.
+- Manter os efeitos de circulo, borda e combinacao, ajustando antialiasing pelo tamanho renderizado.
+- Adicionar sombra ou contorno configuravel aos rotulos para leitura em fundos claros e escuros.
+- Avaliar cor individual por tecla sem prejudicar a configuracao simples de cor global.
+- Eliminar texturas e parametros que deixarem de ser necessarios depois da migracao procedural.
+
+## Fase 4 - Desempenho e robustez
+
+- Recriar texturas de rotulo apenas quando fonte, texto ou tamanho efetivamente mudarem.
+- Evitar chamadas GDI e operacoes graficas redundantes durante atualizacoes de propriedades.
+- Validar limites e valores nao finitos de todas as novas configuracoes.
+- Garantir que recursos parcialmente carregados sejam liberados corretamente.
+- Manter o custo proporcional ao numero de teclas visiveis.
+- Verificar comportamento com duas ou mais fontes usando layouts diferentes.
+
+## Validacao funcional
+
+- Confirmar pressionamento e soltura de cada tecla suportada dentro e fora do foco do OBS.
+- Testar toques muito rapidos, teclas mantidas e varias teclas simultaneas.
+- Confirmar que auto-repeat nao reinicia indevidamente a animacao de pressionamento.
+- Testar aliases, presets e transicao entre layouts sem estados presos.
+- Testar caracteres vazios, longos, Unicode e fontes ausentes.
+- Testar tamanhos e espacamentos minimos e maximos, incluindo rotacoes de `-180` a `180` graus.
+- Confirmar que os efeitos e rotulos permanecem dentro dos limites da fonte.
+- Testar habilitar, desabilitar, duplicar, reconfigurar e remover fontes durante o uso.
+- Testar jogos em tela cheia, janela sem borda, UAC, RDP e maquina virtual quando aplicavel ao metodo de captura.
 
 ## Validacao tecnica
 
-- Medir se `video_tick` e `video_render` continuam sem alocacoes no caminho normal.
-- Verificar uso de CPU com a fonte ociosa e durante movimentos rapidos.
-- Testar adicionar, duplicar, reconfigurar e remover varias fontes de mouse.
-- Testar fechamento do OBS e troca repetida de cenas.
-- Testar carregamento e fechamento do OBS quando outro plugin ja possui o registro Raw Input do mouse.
-- Confirmar que varias fontes compartilham os mesmos totais relativos sem consumir movimento umas das outras.
-- Verificar logs por imagens, efeitos ou recursos nao liberados.
+- Medir alocacoes em `video_tick` e `video_render`.
+- Comparar uso de CPU ocioso e com todas as teclas animando.
+- Testar carregamento e encerramento repetido do OBS.
+- Verificar logs por erros de shader, fonte, textura, hook, handle ou recurso nao liberado.
+- Confirmar que a captura do teclado nao interfere no Raw Input do mouse ou em outros plugins.
+- Revisar o diff completo e executar build `RelWithDebInfo` antes da instalacao.
 
 ## Criterios de conclusao
 
-- Cursor, trilha e cliques mantem o comportamento esperado em todos os limites.
-- A trilha usa distancia acumulada sem back-dating e sem saltos entre monitores.
-- Eventos de clique permanecem na posicao de origem.
-- Nao existem erros novos no log do OBS.
-- Desempenho permanece adequado com duas ou mais fontes de mouse.
+- O layout WASD atual continua funcional e compativel com configuracoes existentes.
+- Os novos layouts representam corretamente todas as teclas configuradas.
+- Nenhum pressionamento ou soltura fica preso durante uso normal, perda de foco ou troca de cena.
+- Animacoes, rotulos e formas permanecem suaves em todos os limites.
+- Nao existem alocacoes recorrentes desnecessarias nem erros novos no log do OBS.
+- O desempenho permanece adequado com duas ou mais fontes e o maior preset suportado.
