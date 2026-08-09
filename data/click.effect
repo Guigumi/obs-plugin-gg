@@ -25,8 +25,18 @@ ClickVertInOut VSClick(ClickVertInOut vert_in)
 float4 PSDrawClick(ClickVertInOut vert_in) : TARGET
 {
 	float4 rgba = image.Sample(click_sampler, vert_in.uv);
-	float white_mask = step(0.999, min(min(rgba.r, rgba.g), min(rgba.b, rgba.a)));
+	float white_mask = step(0.999, min(rgba.r, min(rgba.g, rgba.b)));
 	rgba.rgb = lerp(rgba.rgb, tint.rgb, white_mask);
+	rgba.rgb *= opacity;
+	rgba.a *= opacity;
+	return rgba;
+}
+
+float4 PSDrawCursor(ClickVertInOut vert_in) : TARGET
+{
+	float4 rgba = image.Sample(click_sampler, vert_in.uv);
+	float luminance = dot(rgba.rgb, float3(0.2126, 0.7152, 0.0722));
+	rgba.rgb = tint.rgb * luminance;
 	rgba.rgb *= opacity;
 	rgba.a *= opacity;
 	return rgba;
@@ -38,5 +48,14 @@ technique DrawClick
 	{
 		vertex_shader = VSClick(vert_in);
 		pixel_shader  = PSDrawClick(vert_in);
+	}
+}
+
+technique DrawCursor
+{
+	pass
+	{
+		vertex_shader = VSClick(vert_in);
+		pixel_shader  = PSDrawCursor(vert_in);
 	}
 }

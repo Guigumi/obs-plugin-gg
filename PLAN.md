@@ -1,201 +1,183 @@
-# OBS Plugin GG - Plano de implementacao
+# Mouse Overlay GG - Plano de melhorias
 
-## Objetivo
+## Objetivo atual
 
-Criar um plugin extremamente leve para OBS Studio que exiba entradas do mouse em uma fonte de overlay. O primeiro MVP sera exclusivo para Windows e mostrara a posicao do cursor e o estado dos botoes, com consumo minimo de CPU e memoria.
+Melhorar exclusivamente a fonte de mouse antes de retomar o desenvolvimento do teclado.
 
-O plugin sera desenvolvido de forma independente do repositorio principal do OBS, facilitando manutencao, compilacao e distribuicao.
+Este documento contem apenas trabalho ainda pendente. Funcionalidades e etapas ja concluidas foram removidas.
 
-## Escopo do MVP
+## Diretrizes
 
-- Fonte de video transparente adicionada pelo usuario a uma cena do OBS.
-- Captura global do mouse no Windows, mesmo quando o OBS nao estiver em foco.
-- Posicao atual do cursor.
-- Indicacao visual dos botoes esquerdo, direito e central.
-- Cor e tamanho do cursor configuraveis.
-- Cor ou efeito de destaque configuravel durante cliques.
-- Opcao futura para usar uma imagem PNG personalizada.
-- Sem captura de teclado nesta primeira versao.
-- Sem texto e, portanto, sem dependencia inicial do FreeType2.
+- Manter o canvas fixo em `1920x1080` neste momento.
+- Manter o caminho normal de cada frame sem alocacoes de heap.
+- Nao criar threads adicionais.
+- Preservar compatibilidade com configuracoes ja salvas no OBS.
+- Preferir funcoes pequenas com uma responsabilidade clara.
+- Separar cursor, trilha, cliques e recursos em arquivos dedicados.
+- Simplificar a interpolacao da trilha, priorizando previsibilidade e manutencao.
 
-## Arquitetura
-
-### Plugin independente
-
-O projeto deve usar o template e as dependencias oficiais para plugins externos do OBS, em vez de ser inserido diretamente na arvore de fontes do OBS Studio.
-
-Nome do plugin:
+## Estrutura proposta
 
 ```text
-input-overlay-gg
+src/
+|-- mouse-overlay.c
+|-- mouse-overlay.h
+|-- mouse-overlay-internal.h
+|-- mouse-overlay-cursor.c
+|-- mouse-overlay-cursor.h
+|-- mouse-overlay-trail.c
+|-- mouse-overlay-trail.h
+|-- mouse-overlay-click.c
+|-- mouse-overlay-click.h
+|-- mouse-overlay-resources.c
+`-- mouse-overlay-resources.h
 ```
 
-ID da fonte:
+Responsabilidades:
 
-```text
-input_overlay_gg_mouse
-```
+- `mouse-overlay.c`: ciclo de vida da fonte, propriedades, configuracoes e encaminhamento de `tick`/`render`.
+- `mouse-overlay-cursor.c`: posicao, visibilidade, limites e renderizacao do cursor principal.
+- `mouse-overlay-trail.c`: buffer circular, espacamento, expiracao, fade e renderizacao da trilha.
+- `mouse-overlay-click.c`: captura dos eventos, buffer circular, animacoes e renderizacao dos cliques.
+- `mouse-overlay-resources.c`: imagens, efeitos, parametros, techniques e recarga de recursos.
+- `mouse-overlay-internal.h`: estado privado compartilhado entre os modulos.
+- `mouse-overlay.h`: somente declaracoes publicas necessarias para registrar a fonte.
 
-### Captura de entrada
+## 1. Melhoria da logica
 
-A captura sera feita uma vez por `video_tick`, usando a API Win32:
+### Cursor
 
-- `GetCursorPos` para obter a posicao global do cursor.
-- `GetAsyncKeyState(VK_LBUTTON)` para o botao esquerdo.
-- `GetAsyncKeyState(VK_RBUTTON)` para o botao direito.
-- `GetAsyncKeyState(VK_MBUTTON)` para o botao central.
+- Validar `monitor_index` antes da amostragem e usar todos os monitores quando o indice salvo nao existir mais.
+- Centralizar conversao de coordenadas normalizadas para o canvas.
+- Centralizar o clamp do centro do cursor para impedir corte nas bordas.
+- Resetar continuidade da trilha quando o cursor sair do monitor, voltar a aparecer ou trocar de monitor.
 
-Nao sera usado `SetWindowsHookEx`. O MVP tambem nao criara threads, timers ou filas proprias. Isso reduz complexidade, sincronizacao e custo em segundo plano.
+### Trilha
 
-### Fonte OBS
+- Separar a logica em funcoes para reset, expiracao, amostragem, insercao e renderizacao.
+- Substituir o back-dating atual por interpolacao de distancia acumulada.
+- Guardar a distancia restante entre frames para manter pontos igualmente espacados.
+- Inserir pontos ao longo do segmento entre a posicao anterior e a atual.
+- Atribuir `now_ns` aos novos pontos, removendo calculos artificiais de tempo dentro do frame.
+- Limitar a quantidade gerada por tick pela capacidade do buffer.
+- Evitar um risco longo ao reaparecer, trocar de monitor ou reativar a trilha.
+- Concentrar operacoes do buffer circular em helpers `trail_reset`, `trail_prune` e `trail_push`.
+- Manter tamanho minimo interno de renderizacao em `1px`, sem adicionar nova propriedade ao usuario.
 
-A fonte usara:
+### Cliques
+
+- Separar deteccao de borda, insercao, expiracao e renderizacao.
+- Criar funcoes puras para escala e opacidade das animacoes.
+- Validar o tipo de animacao recebido das configuracoes.
+- Concentrar operacoes do buffer circular em helpers `click_reset`, `click_prune` e `click_push`.
+- Manter cliques pressionados e eventos animados como estados distintos durante a renderizacao.
+- Limpar eventos ao desativar cliques ou quando o cursor sair do monitor selecionado.
+
+## 2. Melhoria da estrutura
+
+Usar subestruturas privadas semelhantes a:
 
 ```c
-OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW
+struct mouse_cursor_state;
+struct mouse_trail_state;
+struct mouse_click_state;
+struct mouse_overlay_resources;
 ```
 
-Callbacks previstos:
+- Configuracoes persistentes devem ficar junto do recurso que as utiliza.
+- Estado transitorio, como indices de buffer e timestamps, deve ficar separado das configuracoes.
+- O arquivo principal nao deve conhecer detalhes de interpolacao ou animacao.
+- Cada modulo deve expor somente as operacoes necessarias para criar, atualizar, resetar, executar tick e renderizar.
+- Nao criar uma camada generica de abstracao para um unico uso; compartilhar apenas carregamento, tint e desenho de sprites.
 
-- `get_name`
-- `create`
-- `destroy`
-- `get_width`
-- `get_height`
-- `get_defaults`
-- `get_properties`
-- `update`
-- `video_tick`
-- `video_render`
+## 3. Qualidade de vida das funcoes
 
-### Renderizacao
+- Criar helpers de clamp para `float`, inteiro e percentual.
+- Criar helpers de leitura validada para configuracoes `double`, inteiro e enum.
+- Usar `isfinite` antes de aceitar todos os valores de ponto flutuante.
+- Armazenar internamente opacidades e escalas ja normalizadas em `0.0-1.0`.
+- Precalcular duracoes em nanossegundos no `update`, evitando conversao a cada frame.
+- Criar helper unico para carregar uma imagem por caminho e registrar erros.
+- Criar helper unico para carregar um efeito e validar techniques e parametros obrigatorios.
+- Criar helper de desenho que encapsule textura, opacidade, transformacao e tamanho.
+- Criar helper de tint que aceite a cor OBS e configure o `vec4` correto.
+- Retornar cedo de `tick` e `render` quando cursor, trilha e cliques estiverem todos inativos.
+- Evitar macros de leitura de configuracoes; preferir funcoes tipadas e depuraveis.
 
-- Renderizar diretamente com a API grafica do OBS.
-- Usar `gs_draw_sprite` para texturas e elementos do overlay.
-- Manter texturas e outros recursos em cache.
-- Nao alocar memoria a cada frame.
-- Retornar cedo quando nao houver nada visivel para atualizar ou desenhar.
-- Respeitar o contexto grafico do OBS ao criar ou destruir recursos de GPU.
-- Manter fundo transparente para composicao sobre qualquer fonte.
+## 4. Minimos, maximos e capacidades
 
-## Estrutura inicial
+### Valores de interface
 
-```text
-obs-plugin-gg/
-|-- CMakeLists.txt
-|-- CMakePresets.json
-|-- cmake/
-|-- data/
-|   `-- locale/
-|       |-- en-US.ini
-|       `-- pt-BR.ini
-|-- src/
-|   |-- input-overlay-gg.c
-|   |-- mouse-capture-win.c
-|   `-- mouse-capture.h
-`-- PLAN.md
-```
+| Configuracao | Minimo | Padrao | Maximo | Passo |
+| --- | ---: | ---: | ---: | ---: |
+| Tamanho do cursor | 4px | 25px | 128px | 1px |
+| Opacidade do cursor | 0% | 100% | 100% | 1% |
+| Pontos da trilha | 1 | 25 | 256 | 1 |
+| Duracao da trilha | 0.05s | 0.25s | 30s | 0.05s |
+| Espacamento da trilha | 1px | 20px | 256px | 1px |
+| Tamanho da trilha | 10% | 100% | 200% | 1% |
+| Opacidade da trilha | 0% | 50% | 100% | 1% |
+| Duracao do clique | 0.05s | 0.25s | 1.50s | 0.05s |
+| Opacidade do clique | 0% | 25% | 100% | 1% |
 
-A estrutura exata pode ser ajustada ao template oficial vigente do OBS no momento da implementacao.
+### Capacidades internas
 
-## Etapas
+- Capacidade do buffer da trilha: `256` pontos.
+- Capacidade do buffer de cliques: `256` eventos.
+- Tamanho minimo renderizavel: `1px`.
+- Escala minima das animacoes de clique: `0.5`.
+- Escala maxima das animacoes de clique: `1.0`.
 
-### 1. Preparar o projeto
+As capacidades internas nao devem ser apresentadas como configuracoes separadas.
 
-- Inicializar o repositorio Git.
-- Adotar o template oficial de plugin do OBS.
-- Configurar CMake para Windows x64.
-- Vincular `OBS::libobs` e `user32`.
-- Confirmar que um modulo vazio carrega no OBS sem erros.
+## 5. Ordem de implementacao
 
-**Observacao (validada no OBS 32.2.1 Windows):** plugins de usuario
-sao escaneados de `%ProgramData%\obs-studio\plugins\<modulo>` (via
-`GetProgramDataPath`/`CSIDL_COMMON_APPDATA`), nao de `%APPDATA%`. O
-caminho binario e `...\bin\64bit\`, os dados de locale ficam em
-`...\data\locale\`, e o OBS precisa ser iniciado com o diretorio de
-trabalho em `C:\Program Files\obs-studio\bin\64bit` para localizar o
-resto dos seus proprios dados.
+### Fase 1 - Estrutura e validacao
 
-**Recursos de GPU:** criar texturas em `create` falha (sem contexto
-grafico ativo). Criar sob demanda no primeiro `video_render`. Ao chamar
-`gs_texture_create` com dados embutidos, passe um ponteiro para a
-variavel de dados (`const uint8_t *data = tex_data; ... &data`); passar
-`(const uint8_t **)&array` faz o D3D11 ler os primeiros bytes como
-endereco e falhar com `E_INVALIDARG` (0x80070057).
+- Criar os novos arquivos e atualizar `CMakeLists.txt`.
+- Separar configuracao de estado transitorio nos novos modulos.
+- Aplicar os novos limites.
+- Implementar leitura validada e clamp de todas as configuracoes.
 
-### 2. Registrar a fonte
+### Fase 2 - Recursos e cursor
 
-- Implementar a entrada do modulo com `OBS_DECLARE_MODULE`.
-- Registrar `input_overlay_gg_mouse` com `obs_register_source`.
-- Criar e destruir o estado da fonte corretamente.
-- Definir dimensoes configuraveis para o canvas transparente.
+- Mover imagens, efeitos e helpers graficos para o modulo de recursos.
+- Mover atualizacao e renderizacao do cursor para seu modulo.
+- Validar monitor e resetar continuidade quando a visibilidade mudar.
+- Preservar o comportamento visual atual antes de alterar trilha e cliques.
 
-### 3. Capturar o mouse
+### Fase 3 - Trilha
 
-- Isolar chamadas Win32 em `mouse-capture-win.c`.
-- Ler posicao e botoes uma vez por `video_tick`.
-- Converter coordenadas globais para o espaco visual escolhido pelo overlay.
-- Guardar apenas o estado mais recente, sem historico ou fila de eventos.
+- Mover o buffer circular para o modulo da trilha.
+- Implementar interpolacao por distancia acumulada.
+- Remover back-dating e estado antigo de interpolacao.
+- Validar espacamento, expiracao, shrink e fades.
 
-### 4. Renderizar o overlay
+### Fase 4 - Cliques
 
-- Desenhar o cursor com uma textura pequena ou forma simples.
-- Aplicar destaque visual enquanto cada botao estiver pressionado.
-- Evitar recriar texturas, efeitos ou buffers durante a renderizacao.
-- Validar transparencia e escala em diferentes resolucoes.
+- Mover o buffer e animacoes para o modulo de cliques.
+- Extrair funcoes puras de escala e opacidade.
+- Validar eventos simultaneos, clique segurado e tipos de animacao.
 
-### 5. Adicionar configuracoes
+### Fase 5 - Verificacao
 
-- Largura e altura da fonte.
-- Tamanho do cursor.
-- Cor normal.
-- Cor de clique.
-- Ativacao individual dos botoes esquerdo, direito e central.
-- Opcionalmente, caminho para PNG personalizado depois que o desenho padrao estiver estavel.
+- Executar `clang-format` nos arquivos alterados.
+- Compilar em `RelWithDebInfo` sem avisos novos.
+- Instalar DLL, PDB e dados em ProgramData.
+- Testar cursor nos limites de `4px` e `256px`.
+- Testar duracoes minima e maxima da trilha e dos cliques.
+- Testar movimentos lentos, rapidos e saltos entre monitores.
+- Testar troca, desconexao e reconexao de monitor.
+- Testar habilitar e desabilitar cursor, trilha e cliques durante uso.
+- Confirmar ausencia de alocacoes no caminho normal de `video_tick` e `video_render`.
+- Verificar logs por efeitos, imagens ou recursos nao liberados.
 
-### 6. Validar desempenho e estabilidade
+## Criterios de conclusao
 
-- Medir uso de CPU com a fonte ociosa e em movimento.
-- Confirmar ausencia de alocacoes continuas por frame.
-- Confirmar que o plugin nao cria threads.
-- Testar adicionar, remover, duplicar e reconfigurar a fonte repetidamente.
-- Testar fechamento do OBS, troca de cena e perda de dispositivo grafico.
-- Verificar logs do OBS quanto a erros e recursos nao liberados.
-
-### 7. Empacotar
-
-- Gerar artefatos para Windows x64.
-- Incluir DLL, dados de locale e recursos visuais necessarios.
-- Documentar instalacao manual e versoes do OBS suportadas.
-- Adicionar licenca e atribuicoes das dependencias utilizadas.
-
-## Metas de desempenho
-
-- Nenhuma thread criada pelo plugin.
-- Nenhuma alocacao de heap no caminho normal de cada frame.
-- Uso de CPU ocioso desprezivel.
-- Memoria propria do plugin abaixo de aproximadamente 2 MB, sem contar recursos compartilhados do OBS.
-- Uma consulta de cursor e tres consultas de botoes por `video_tick`.
-
-As metas devem ser confirmadas por medicao; nao devem ser tratadas como garantias antes dos testes.
-
-## Evolucao posterior
-
-Depois que o MVP do mouse estiver estavel:
-
-1. Adicionar overlay de teclado com uma lista configuravel de teclas.
-2. Avaliar captura por polling ou Raw Input conforme os requisitos reais.
-3. Adicionar labels usando FreeType2 somente quando texto for necessario.
-4. Criar temas e layouts reutilizaveis.
-5. Adicionar animacoes curtas de clique sem manter trabalho ativo quando o overlay estiver ocioso.
-6. Avaliar suporte a Linux e macOS com implementacoes de captura separadas por plataforma.
-
-## Criterios de conclusao do MVP
-
-- O plugin compila e carrega em uma versao suportada do OBS Studio para Windows x64.
-- A fonte aparece na lista de fontes do OBS.
-- O cursor acompanha a posicao global corretamente.
-- Os tres botoes exibem feedback visual sem travamentos.
-- As configuracoes persistem ao salvar e reabrir a cena.
-- Adicionar e remover a fonte nao gera erros no log.
-- O plugin permanece dentro das metas de desempenho apos medicao.
+- `mouse-overlay.c` fica limitado a orquestracao da fonte OBS.
+- Cursor, trilha, cliques e recursos ficam em modulos separados.
+- Todos os valores recebidos das configuracoes sao validados e limitados.
+- A trilha usa distancia acumulada sem back-dating.
+- O comportamento do cursor e dos cliques permanece funcional.
+- Nao existem consultas de techniques nem alocacoes de heap por frame.
+- Build, instalacao e carregamento no OBS concluem sem erros novos.

@@ -25,11 +25,33 @@ KeyboardVertInOut VSKeyboard(KeyboardVertInOut vert_in)
 float4 PSDrawKeyboard(KeyboardVertInOut vert_in) : TARGET
 {
 	float4 rgba = image.Sample(keyboard_sampler, vert_in.uv);
-	float white_mask = step(0.999, min(rgba.r, min(rgba.g, rgba.b)));
-	rgba.rgb = lerp(rgba.rgb, tint.rgb, white_mask);
+	float luminance = dot(rgba.rgb, float3(0.2126, 0.7152, 0.0722));
+	rgba.rgb = tint.rgb * luminance;
 	rgba.rgb *= rgba.a * opacity;
 	rgba.a *= opacity;
 	return rgba;
+}
+
+float4 PSDrawKeyboardCircle(KeyboardVertInOut vert_in) : TARGET
+{
+	float2 centered = vert_in.uv - 0.5f;
+	float radius = length(centered) / 0.5f;
+	float alpha = 1.0f - smoothstep(0.35f, 1.0f, radius);
+	alpha *= opacity;
+	return float4(tint.rgb * alpha, alpha);
+}
+
+float4 PSDrawKeyboardBorder(KeyboardVertInOut vert_in) : TARGET
+{
+	float2 centered = vert_in.uv - 0.5f;
+	float corner = 0.16f;
+	float thickness = 0.045f;
+	float2 q = abs(centered) - (0.5f - corner);
+	float outside = max(q, 0.0f);
+	float distance = length(outside) + min(max(q.x, q.y), 0.0f) - corner;
+	float alpha = 1.0f - smoothstep(0.0f, thickness, abs(distance));
+	alpha *= opacity;
+	return float4(tint.rgb * alpha, alpha);
 }
 
 technique DrawKeyboard
@@ -38,5 +60,23 @@ technique DrawKeyboard
 	{
 		vertex_shader = VSKeyboard(vert_in);
 		pixel_shader  = PSDrawKeyboard(vert_in);
+	}
+}
+
+technique DrawKeyboardCircle
+{
+	pass
+	{
+		vertex_shader = VSKeyboard(vert_in);
+		pixel_shader  = PSDrawKeyboardCircle(vert_in);
+	}
+}
+
+technique DrawKeyboardBorder
+{
+	pass
+	{
+		vertex_shader = VSKeyboard(vert_in);
+		pixel_shader  = PSDrawKeyboardBorder(vert_in);
 	}
 }
