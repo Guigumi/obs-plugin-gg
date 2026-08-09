@@ -20,7 +20,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <graphics/graphics.h>
 #include <graphics/image-file.h>
 #include <util/platform.h>
-#include <util/threading.h>
 
 #include "mouse-capture.h"
 #include "mouse-overlay.h"
@@ -66,12 +65,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define CLICK_ANIM_CONTRACT 1
 #define CLICK_ANIM_PULSE 2
 #define CLICK_ANIM_DEFAULT CLICK_ANIM_PULSE
-#define MOUSE_BUTTON_LEFT 0x01L
-#define MOUSE_BUTTON_RIGHT 0x02L
-
-static volatile long shared_button_state;
-static volatile long shared_left_click_sequence;
-static volatile long shared_right_click_sequence;
 
 struct trail_point {
 	float x;
@@ -310,10 +303,8 @@ static void *mouse_overlay_create(obs_data_t *settings, obs_source_t *source)
 	UNUSED_PARAMETER(source);
 
 	struct mouse_overlay_gg_data *data = bzalloc(sizeof(*data));
-	data->seen_left_click_sequence =
-		os_atomic_load_long(&shared_left_click_sequence);
-	data->seen_right_click_sequence =
-		os_atomic_load_long(&shared_right_click_sequence);
+	mouse_capture_get_button_sequences(&data->seen_left_click_sequence,
+					   &data->seen_right_click_sequence);
 
 	/* Apply settings at creation so an old saved scene without the new
 	 * keys works on first frame (defaults from mouse_overlay_update). */
@@ -424,24 +415,9 @@ static void mouse_overlay_video_tick(void *data, float seconds)
 
 	/* Detect each button edge once globally, then let every source instance
 	 * consume the resulting sequence exactly once. */
-	bool left;
-	bool right;
-	mouse_capture_sample_buttons(&left, &right);
-	const long button_state = (left ? MOUSE_BUTTON_LEFT : 0) |
-				  (right ? MOUSE_BUTTON_RIGHT : 0);
-	const long previous_state =
-		os_atomic_exchange_long(&shared_button_state, button_state);
-	if ((button_state & MOUSE_BUTTON_LEFT) &&
-	    !(previous_state & MOUSE_BUTTON_LEFT))
-		os_atomic_inc_long(&shared_left_click_sequence);
-	if ((button_state & MOUSE_BUTTON_RIGHT) &&
-	    !(previous_state & MOUSE_BUTTON_RIGHT))
-		os_atomic_inc_long(&shared_right_click_sequence);
-
-	const long left_sequence =
-		os_atomic_load_long(&shared_left_click_sequence);
-	const long right_sequence =
-		os_atomic_load_long(&shared_right_click_sequence);
+	long left_sequence;
+	long right_sequence;
+	mouse_capture_sample_button_sequences(&left_sequence, &right_sequence);
 	if (shdata->seen_left_click_sequence != left_sequence) {
 		shdata->seen_left_click_sequence = left_sequence;
 		if (shdata->click_enabled && shdata->click_left)

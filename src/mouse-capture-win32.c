@@ -20,10 +20,19 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include <windows.h>
 
+#include <util/threading.h>
+
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #define BOUND_CACHE_MS 2000u
+#define MOUSE_BUTTON_LEFT 0x01L
+#define MOUSE_BUTTON_RIGHT 0x02L
+
+static volatile long shared_button_state;
+static volatile long shared_left_click_sequence;
+static volatile long shared_right_click_sequence;
 
 struct desktop_bounds {
 	int left;
@@ -68,8 +77,29 @@ void mouse_capture_sample_position(float *x, float *y)
 	*y = fminf(fmaxf(ny, 0.0f), 1.0f);
 }
 
-void mouse_capture_sample_buttons(bool *left, bool *right)
+void mouse_capture_get_button_sequences(long *left, long *right)
 {
-	*left = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-	*right = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+	*left = os_atomic_load_long(&shared_left_click_sequence);
+	*right = os_atomic_load_long(&shared_right_click_sequence);
+}
+
+void mouse_capture_sample_button_sequences(long *left, long *right)
+{
+	const bool left_down =
+		(GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+	const bool right_down =
+		(GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+	const long button_state = (left_down ? MOUSE_BUTTON_LEFT : 0) |
+				  (right_down ? MOUSE_BUTTON_RIGHT : 0);
+	const long previous_state =
+		os_atomic_exchange_long(&shared_button_state, button_state);
+
+	if ((button_state & MOUSE_BUTTON_LEFT) &&
+	    !(previous_state & MOUSE_BUTTON_LEFT))
+		os_atomic_inc_long(&shared_left_click_sequence);
+	if ((button_state & MOUSE_BUTTON_RIGHT) &&
+	    !(previous_state & MOUSE_BUTTON_RIGHT))
+		os_atomic_inc_long(&shared_right_click_sequence);
+
+	mouse_capture_get_button_sequences(left, right);
 }
