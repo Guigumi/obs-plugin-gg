@@ -24,7 +24,7 @@ ClickVertInOut VSClick(ClickVertInOut vert_in)
 float4 PSDrawClick(ClickVertInOut vert_in) : TARGET
 {
 	float4 rgba = image.Sample(click_sampler, vert_in.uv);
-	rgba.rgb *= opacity;
+	rgba.rgb *= rgba.a * opacity;
 	rgba.a *= opacity;
 	return rgba;
 }

@@ -85,20 +85,14 @@ void mouse_capture_get_button_sequences(long *left, long *right)
 
 void mouse_capture_sample_button_sequences(long *left, long *right)
 {
-	const bool left_down =
-		(GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-	const bool right_down =
-		(GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
-	const long button_state = (left_down ? MOUSE_BUTTON_LEFT : 0) |
-				  (right_down ? MOUSE_BUTTON_RIGHT : 0);
-	const long previous_state =
-		os_atomic_exchange_long(&shared_button_state, button_state);
+	const bool left_down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+	const bool right_down = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+	const long button_state = (left_down ? MOUSE_BUTTON_LEFT : 0) | (right_down ? MOUSE_BUTTON_RIGHT : 0);
+	const long previous_state = os_atomic_exchange_long(&shared_button_state, button_state);
 
-	if ((button_state & MOUSE_BUTTON_LEFT) &&
-	    !(previous_state & MOUSE_BUTTON_LEFT))
+	if ((button_state & MOUSE_BUTTON_LEFT) && !(previous_state & MOUSE_BUTTON_LEFT))
 		os_atomic_inc_long(&shared_left_click_sequence);
-	if ((button_state & MOUSE_BUTTON_RIGHT) &&
-	    !(previous_state & MOUSE_BUTTON_RIGHT))
+	if ((button_state & MOUSE_BUTTON_RIGHT) && !(previous_state & MOUSE_BUTTON_RIGHT))
 		os_atomic_inc_long(&shared_right_click_sequence);
 
 	mouse_capture_get_button_sequences(left, right);

@@ -24,7 +24,7 @@ TrailVertInOut VSTrail(TrailVertInOut vert_in)
 float4 PSDrawTrail(TrailVertInOut vert_in) : TARGET
 {
 	float4 rgba = image.Sample(trail_sampler, vert_in.uv);
-	rgba.rgb *= opacity;
+	rgba.rgb *= rgba.a * opacity;
 	rgba.a *= opacity;
 	return rgba;
 }
