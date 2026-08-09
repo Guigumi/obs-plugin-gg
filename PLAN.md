@@ -2,7 +2,8 @@
 
 ## Objetivo atual
 
-Validar visualmente a nova implementacao modular do mouse antes de retomar melhorias do teclado.
+Validar visualmente a implementacao modular do mouse e o novo modo de cursor para jogos antes de retomar melhorias
+do teclado.
 
 As etapas concluidas de limpeza, logica, helpers, limites e separacao em modulos foram removidas deste documento.
 
@@ -33,11 +34,21 @@ src/
 - Confirmar que a trilha antiga desaparece suavemente ao sair do monitor, sem criar uma linha ao retornar.
 - Testar troca, desconexao e reconexao de monitor.
 - Confirmar que nenhuma animacao de clique ultrapassa o tamanho do `cursor-main`.
+- Confirmar que o clique procedural permanece suave entre `4px` e `256px`, sem serrilhado dos antigos PNGs.
 - Confirmar que um clique solto permanece na posicao em que ocorreu.
-- Confirmar que a animacao continua em loop e acompanha o cursor enquanto o botao estiver segurado.
+- Confirmar que a animacao de entrada acontece apenas uma vez e termina em escala `1.0`.
+- Confirmar que o efeito permanece estatico e acompanha o cursor enquanto o botao estiver segurado.
+- Confirmar que o fade-out inicia somente ao soltar e permanece na posicao de soltura.
 - Confirmar que clique segurado nao duplica a animacao e o indicador estatico.
 - Testar cliques esquerdo e direito simultaneos.
 - Testar habilitar e desabilitar cursor, trilha e cliques durante o uso.
+- Confirmar os modos `Automatico`, `Desktop` e `Jogo`, incluindo fallback para Desktop quando Raw Input nao estiver
+  disponivel.
+- Em modo Automatico, testar jogos em tela cheia e em janela com cursor oculto, incluindo pausas longas sem movimento.
+- Confirmar que navegador, apresentacao, RDP e maquina virtual nao ativam o modo Jogo indevidamente.
+- Em modo Jogo, validar sensibilidade entre `0.1` e `5.0` e wrap horizontal, vertical e nos quatro cantos.
+- Confirmar que cursor, trilha e cliques sao recortados nos limites da fonte durante o wrap, sem vazamento na cena.
+- Testar perda de foco, menus com cursor visivel e retorno ao jogo sem saltos ou movimento acumulado.
 
 ## Validacao tecnica
 
@@ -45,6 +56,8 @@ src/
 - Verificar uso de CPU com a fonte ociosa e durante movimentos rapidos.
 - Testar adicionar, duplicar, reconfigurar e remover varias fontes de mouse.
 - Testar fechamento do OBS e troca repetida de cenas.
+- Testar carregamento e fechamento do OBS quando outro plugin ja possui o registro Raw Input do mouse.
+- Confirmar que varias fontes compartilham os mesmos totais relativos sem consumir movimento umas das outras.
 - Verificar logs por imagens, efeitos ou recursos nao liberados.
 
 ## Criterios de conclusao

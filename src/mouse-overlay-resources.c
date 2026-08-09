@@ -26,8 +26,6 @@ static void mouse_resources_init_images(struct mouse_overlay_resources *resource
 	const struct mouse_image_entry images[] = {
 		{&resources->cursor_image, "images/cursor-main.png"},
 		{&resources->trail_image, "images/cursor-trail.png"},
-		{&resources->click_lmb_image, "images/cursor-LMB.png"},
-		{&resources->click_rmb_image, "images/cursor-RMB.png"},
 	};
 	for (size_t i = 0; i < sizeof(images) / sizeof(images[0]); i++)
 		mouse_resources_load_image(images[i].image, images[i].path);
@@ -38,8 +36,6 @@ static void mouse_resources_free_images(struct mouse_overlay_resources *resource
 	gs_image_file_t *images[] = {
 		&resources->cursor_image,
 		&resources->trail_image,
-		&resources->click_lmb_image,
-		&resources->click_rmb_image,
 	};
 	for (size_t i = 0; i < sizeof(images) / sizeof(images[0]); i++)
 		gs_image_file_free(images[i]);
@@ -92,11 +88,15 @@ static void mouse_resources_init_effects(struct mouse_overlay_resources *resourc
 		resources->click_effect_image = gs_effect_get_param_by_name(resources->click_effect, "image");
 		resources->click_effect_opacity = gs_effect_get_param_by_name(resources->click_effect, "opacity");
 		resources->click_effect_tint = gs_effect_get_param_by_name(resources->click_effect, "tint");
+		resources->click_effect_side = gs_effect_get_param_by_name(resources->click_effect, "click_side");
+		resources->click_effect_size = gs_effect_get_param_by_name(resources->click_effect, "sprite_size");
 		mouse_resources_validate_effect_entry("click.effect", "DrawCursor", resources->cursor_technique);
 		mouse_resources_validate_effect_entry("click.effect", "DrawClick", resources->click_technique);
 		mouse_resources_validate_effect_entry("click.effect", "image", resources->click_effect_image);
 		mouse_resources_validate_effect_entry("click.effect", "opacity", resources->click_effect_opacity);
 		mouse_resources_validate_effect_entry("click.effect", "tint", resources->click_effect_tint);
+		mouse_resources_validate_effect_entry("click.effect", "click_side", resources->click_effect_side);
+		mouse_resources_validate_effect_entry("click.effect", "sprite_size", resources->click_effect_size);
 	}
 }
 
@@ -123,8 +123,6 @@ void mouse_resources_prepare(struct mouse_overlay_resources *resources)
 	gs_image_file_t *images[] = {
 		&resources->cursor_image,
 		&resources->trail_image,
-		&resources->click_lmb_image,
-		&resources->click_rmb_image,
 	};
 	for (size_t i = 0; i < sizeof(images) / sizeof(images[0]); i++) {
 		if (!images[i]->texture && images[i]->loaded)
@@ -149,14 +147,60 @@ bool mouse_resources_reload_images(obs_properties_t *props, obs_property_t *prop
 	return true;
 }
 
+static bool mouse_resources_draw_clipped_quad(float x, float y, float size)
+{
+	const float left = x - size / 2.0f;
+	const float top = y - size / 2.0f;
+	const float right = left + size;
+	const float bottom = top + size;
+	const float clipped_left = fmaxf(left, 0.0f);
+	const float clipped_top = fmaxf(top, 0.0f);
+	const float clipped_right = fminf(right, MOUSE_OVERLAY_WIDTH);
+	const float clipped_bottom = fminf(bottom, MOUSE_OVERLAY_HEIGHT);
+	if (clipped_left >= clipped_right || clipped_top >= clipped_bottom)
+		return true;
+	if (clipped_left == left && clipped_top == top && clipped_right == right && clipped_bottom == bottom)
+		return false;
+
+	const float u0 = (clipped_left - left) / size;
+	const float v0 = (clipped_top - top) / size;
+	const float u1 = (clipped_right - left) / size;
+	const float v1 = (clipped_bottom - top) / size;
+	gs_render_start(true);
+	gs_texcoord(u0, v0, 0);
+	gs_vertex2f(clipped_left, clipped_top);
+	gs_texcoord(u1, v0, 0);
+	gs_vertex2f(clipped_right, clipped_top);
+	gs_texcoord(u0, v1, 0);
+	gs_vertex2f(clipped_left, clipped_bottom);
+	gs_texcoord(u1, v1, 0);
+	gs_vertex2f(clipped_right, clipped_bottom);
+	gs_render_stop(GS_TRISTRIP);
+	return true;
+}
+
 void mouse_resources_draw_sprite(gs_eparam_t *image_param, gs_eparam_t *opacity_param, gs_texture_t *texture, float x,
 				 float y, float size, float opacity)
 {
 	gs_effect_set_float(opacity_param, opacity);
 	gs_effect_set_texture(image_param, texture);
+	if (mouse_resources_draw_clipped_quad(x, y, size))
+		return;
 	gs_matrix_push();
 	gs_matrix_translate3f(x - size / 2.0f, y - size / 2.0f, 0.0f);
 	gs_draw_sprite(texture, 0, (uint32_t)size, (uint32_t)size);
+	gs_matrix_pop();
+}
+
+void mouse_resources_draw_procedural(gs_eparam_t *opacity_param, float x, float y, float size, float opacity)
+{
+	gs_effect_set_float(opacity_param, opacity);
+	if (mouse_resources_draw_clipped_quad(x, y, size))
+		return;
+	gs_matrix_push();
+	gs_matrix_translate3f(x - size / 2.0f, y - size / 2.0f, 0.0f);
+	gs_matrix_scale3f(size, size, 1.0f);
+	gs_draw_sprite(NULL, 0, 1, 1);
 	gs_matrix_pop();
 }
 

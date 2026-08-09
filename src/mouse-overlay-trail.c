@@ -1,5 +1,6 @@
 #include "mouse-overlay-trail.h"
 
+#include "mouse-overlay-cursor.h"
 #include "mouse-overlay-resources.h"
 
 #define TRAIL_POINTS_MIN 1u
@@ -204,9 +205,14 @@ void mouse_trail_render(const struct mouse_trail_state *trail, const struct mous
 				size *= remaining;
 			if (size < 1.0f)
 				continue;
-			mouse_resources_draw_sprite(resources->trail_effect_image, resources->trail_effect_opacity,
-						    resources->trail_image.texture, point->x, point->y, size,
-						    fade * trail->opacity);
+			float positions[4][2];
+			const size_t position_count =
+				mouse_cursor_draw_positions(cursor, point->x, point->y, size, positions);
+			for (size_t k = 0; k < position_count; k++)
+				mouse_resources_draw_sprite(resources->trail_effect_image,
+							    resources->trail_effect_opacity,
+							    resources->trail_image.texture, positions[k][0],
+							    positions[k][1], size, fade * trail->opacity);
 		}
 		gs_technique_end_pass(resources->trail_technique);
 	}

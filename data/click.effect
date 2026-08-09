@@ -2,6 +2,8 @@ uniform float4x4 ViewProj;
 uniform texture2d image;
 uniform float opacity;
 uniform float4 tint;
+uniform float click_side;
+uniform float sprite_size;
 
 sampler_state click_sampler {
 	Filter   = Linear;
@@ -24,12 +26,16 @@ ClickVertInOut VSClick(ClickVertInOut vert_in)
 
 float4 PSDrawClick(ClickVertInOut vert_in) : TARGET
 {
-	float4 rgba = image.Sample(click_sampler, vert_in.uv);
-	float white_mask = step(0.999, min(rgba.r, min(rgba.g, rgba.b)));
-	rgba.rgb = lerp(rgba.rgb, tint.rgb, white_mask);
-	rgba.rgb *= opacity;
-	rgba.a *= opacity;
-	return rgba;
+	float2 centered = (vert_in.uv - 0.5f) * 2.0f;
+	float antialias = max(2.0f / max(sprite_size, 1.0f), 0.002f);
+	float radius = length(centered);
+	float circle = 1.0f - smoothstep(1.0f - antialias, 1.0f + antialias, radius);
+	float left_half = 1.0f - smoothstep(-antialias, antialias, centered.x);
+	float right_half = smoothstep(-antialias, antialias, centered.x);
+	float half_mask = click_side < 0.0f ? left_half : right_half;
+	float radial_softness = 1.0f - 0.15f * saturate(radius);
+	float alpha = circle * half_mask * radial_softness * opacity;
+	return float4(tint.rgb * alpha, alpha);
 }
 
 float4 PSDrawCursor(ClickVertInOut vert_in) : TARGET

@@ -74,7 +74,7 @@ static obs_properties_t *mouse_overlay_get_properties(void *data)
 
 	obs_properties_t *cursor = obs_properties_create();
 	obs_properties_add_group(props, "cursor_enabled", obs_module_text("Cursor"), OBS_GROUP_CHECKABLE, cursor);
-	mouse_cursor_add_properties(cursor);
+	mouse_cursor_add_properties(cursor, data ? &((struct mouse_overlay_gg_data *)data)->cursor : NULL);
 
 	obs_properties_t *trail = obs_properties_create();
 	obs_properties_add_group(props, "trail_enabled", obs_module_text("Trail"), OBS_GROUP_CHECKABLE, trail);
@@ -99,8 +99,8 @@ static void mouse_overlay_update(void *context, obs_data_t *settings)
 
 static void *mouse_overlay_create(obs_data_t *settings, obs_source_t *source)
 {
-	UNUSED_PARAMETER(source);
 	struct mouse_overlay_gg_data *data = bzalloc(sizeof(*data));
+	data->source = source;
 	mouse_overlay_update(data, settings);
 	mouse_click_sync_sequences(&data->click);
 	mouse_resources_init(&data->resources);
@@ -136,6 +136,8 @@ static void mouse_overlay_video_tick(void *context, float seconds)
 	struct mouse_overlay_gg_data *data = context;
 	if (!data->cursor.enabled && !data->trail.enabled && !data->click.enabled) {
 		data->cursor.visible = false;
+		data->cursor.relative_initialized = false;
+		data->cursor.wrapped = false;
 		mouse_trail_reset(&data->trail);
 		mouse_click_reset(&data->click);
 		mouse_click_sync_sequences(&data->click);
@@ -144,10 +146,20 @@ static void mouse_overlay_video_tick(void *context, float seconds)
 		return;
 	}
 
+	const int previous_mode = data->cursor.active_mode;
+	const bool tracking_initialized = data->cursor.tracking_initialized;
 	if (mouse_cursor_tick(&data->cursor)) {
-		mouse_trail_reset_continuity(&data->trail);
+		const bool mode_changed = tracking_initialized && previous_mode != data->cursor.active_mode;
+		if (mode_changed)
+			mouse_trail_reset(&data->trail);
+		else
+			mouse_trail_reset_continuity(&data->trail);
+		if (!tracking_initialized || mode_changed)
+			obs_source_update_properties(data->source);
 		mouse_click_reset(&data->click);
 	}
+	if (data->cursor.wrapped)
+		mouse_trail_reset_continuity(&data->trail);
 
 	const uint64_t now_ns = os_gettime_ns();
 	mouse_click_tick(&data->click, &data->cursor, now_ns);

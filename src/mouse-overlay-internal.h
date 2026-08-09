@@ -22,6 +22,9 @@ the Free Software Foundation; either version 2 of the License, or
 #define MOUSE_CLICK_EVENTS_CAPACITY 256u
 #define MOUSE_TINT_COLOR_DEFAULT 0xFFFFFFu
 #define MOUSE_NANOSECONDS_PER_SECOND 1000000000ULL
+#define MOUSE_CURSOR_MODE_AUTOMATIC 0
+#define MOUSE_CURSOR_MODE_DESKTOP 1
+#define MOUSE_CURSOR_MODE_GAME 2
 
 struct mouse_trail_point {
 	float x;
@@ -33,6 +36,7 @@ struct mouse_click_event {
 	float x;
 	float y;
 	uint64_t time_ns;
+	uint64_t release_time_ns;
 	bool left;
 	bool tracks_hold;
 };
@@ -40,8 +44,6 @@ struct mouse_click_event {
 struct mouse_overlay_resources {
 	gs_image_file_t cursor_image;
 	gs_image_file_t trail_image;
-	gs_image_file_t click_lmb_image;
-	gs_image_file_t click_rmb_image;
 	gs_effect_t *trail_effect;
 	gs_technique_t *trail_technique;
 	gs_eparam_t *trail_effect_image;
@@ -53,6 +55,8 @@ struct mouse_overlay_resources {
 	gs_eparam_t *click_effect_image;
 	gs_eparam_t *click_effect_opacity;
 	gs_eparam_t *click_effect_tint;
+	gs_eparam_t *click_effect_side;
+	gs_eparam_t *click_effect_size;
 	volatile bool images_dirty;
 };
 
@@ -63,8 +67,16 @@ struct mouse_cursor_state {
 	bool enabled;
 	bool visible;
 	bool tracking_initialized;
+	bool relative_initialized;
+	bool wrapped;
 	int monitor_index;
 	int active_monitor_index;
+	int configured_mode;
+	int active_mode;
+	volatile long reported_mode;
+	float game_sensitivity;
+	int64_t relative_total_x;
+	int64_t relative_total_y;
 	float x;
 	float y;
 };
@@ -107,6 +119,7 @@ struct mouse_click_state {
 };
 
 struct mouse_overlay_gg_data {
+	obs_source_t *source;
 	struct mouse_overlay_resources resources;
 	struct mouse_cursor_state cursor;
 	struct mouse_trail_state trail;
