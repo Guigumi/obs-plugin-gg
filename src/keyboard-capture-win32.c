@@ -16,24 +16,19 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#include <obs-module.h>
-#include <plugin-support.h>
+#include "keyboard-capture.h"
 
-#include "keyboard-overlay.h"
-#include "mouse-overlay.h"
+#include <windows.h>
 
-OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
-
-bool obs_module_load(void)
+static bool key_down(int virtual_key)
 {
-	obs_register_source(&mouse_overlay_gg_source_info);
-	obs_register_source(&keyboard_overlay_gg_source_info);
-	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
-	return true;
+	return (GetAsyncKeyState(virtual_key) & 0x8000) != 0;
 }
 
-void obs_module_unload(void)
+void keyboard_capture_sample_wasd(bool arrow_aliases, bool pressed[KEYBOARD_KEY_COUNT])
 {
-	obs_log(LOG_INFO, "plugin unloaded");
+	pressed[KEYBOARD_KEY_W] = key_down('W') || (arrow_aliases && key_down(VK_UP));
+	pressed[KEYBOARD_KEY_A] = key_down('A') || (arrow_aliases && key_down(VK_LEFT));
+	pressed[KEYBOARD_KEY_S] = key_down('S') || (arrow_aliases && key_down(VK_DOWN));
+	pressed[KEYBOARD_KEY_D] = key_down('D') || (arrow_aliases && key_down(VK_RIGHT));
 }

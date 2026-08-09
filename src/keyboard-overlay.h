@@ -16,24 +16,8 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#include <obs-module.h>
-#include <plugin-support.h>
+#pragma once
 
-#include "keyboard-overlay.h"
-#include "mouse-overlay.h"
+#include <obs.h>
 
-OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
-
-bool obs_module_load(void)
-{
-	obs_register_source(&mouse_overlay_gg_source_info);
-	obs_register_source(&keyboard_overlay_gg_source_info);
-	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
-	return true;
-}
-
-void obs_module_unload(void)
-{
-	obs_log(LOG_INFO, "plugin unloaded");
-}
+extern struct obs_source_info keyboard_overlay_gg_source_info;

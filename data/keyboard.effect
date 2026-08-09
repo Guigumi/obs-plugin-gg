@@ -1,0 +1,39 @@
+uniform float4x4 ViewProj;
+uniform texture2d image;
+uniform float opacity;
+
+sampler_state keyboard_sampler {
+	Filter   = Linear;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+struct KeyboardVertInOut {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+KeyboardVertInOut VSKeyboard(KeyboardVertInOut vert_in)
+{
+	KeyboardVertInOut vert_out;
+	vert_out.pos = mul(float4(vert_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = vert_in.uv;
+	return vert_out;
+}
+
+float4 PSDrawKeyboard(KeyboardVertInOut vert_in) : TARGET
+{
+	float4 rgba = image.Sample(keyboard_sampler, vert_in.uv);
+	rgba.rgb *= rgba.a * opacity;
+	rgba.a *= opacity;
+	return rgba;
+}
+
+technique DrawKeyboard
+{
+	pass
+	{
+		vertex_shader = VSKeyboard(vert_in);
+		pixel_shader  = PSDrawKeyboard(vert_in);
+	}
+}
