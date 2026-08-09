@@ -19,6 +19,8 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #ifndef MOUSE_CAPTURE_H
 #define MOUSE_CAPTURE_H
 
+#include <stdbool.h>
+
 /*
  * Queries the current cursor position and stores it normalized to
  * [0, 1] in *x/*y using the virtual desktop bounds. If the position
@@ -28,5 +30,12 @@ with this program. If not, see <https://www.gnu.org/licenses/>
  * this call stays cheap in the common frame path.
  */
 void mouse_capture_sample_position(float *x, float *y);
+
+/*
+ * Queries the pressed state of the left and right mouse buttons.
+ * Values are true while the button is held down (edge detection must
+ * be done by the caller).
+ */
+void mouse_capture_sample_buttons(bool *left, bool *right);
 
 #endif

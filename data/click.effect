@@ -1,0 +1,39 @@
+uniform float4x4 ViewProj;
+uniform texture2d image;
+uniform float opacity;
+
+sampler_state click_sampler {
+	Filter   = Linear;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+struct ClickVertInOut {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+ClickVertInOut VSClick(ClickVertInOut vert_in)
+{
+	ClickVertInOut vert_out;
+	vert_out.pos = mul(float4(vert_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = vert_in.uv;
+	return vert_out;
+}
+
+float4 PSDrawClick(ClickVertInOut vert_in) : TARGET
+{
+	float4 rgba = image.Sample(click_sampler, vert_in.uv);
+	rgba.rgb *= opacity;
+	rgba.a *= opacity;
+	return rgba;
+}
+
+technique DrawClick
+{
+	pass
+	{
+		vertex_shader = VSClick(vert_in);
+		pixel_shader  = PSDrawClick(vert_in);
+	}
+}

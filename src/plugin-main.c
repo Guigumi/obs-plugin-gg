@@ -21,12 +21,17 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <graphics/image-file.h>
 #include <plugin-support.h>
 #include <util/platform.h>
+#include <util/threading.h>
 
 #include "mouse-capture.h"
 
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #define OVERLAY_WIDTH 1920u
 #define OVERLAY_HEIGHT 1080u
@@ -38,18 +43,35 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define TRAIL_DURATION_DEFAULT 0.25f
 #define TRAIL_DURATION_MIN 0.1f
 #define TRAIL_DURATION_MAX 10.0f
-#define TRAIL_SPACING_DEFAULT 10.0f
+#define TRAIL_SPACING_DEFAULT 20.0f
 #define TRAIL_SPACING_MIN 0.1f
 #define TRAIL_SPACING_MAX 256.0f
 #define TRAIL_SIZE_DEFAULT_PCT 100
 #define TRAIL_SIZE_MIN_PCT 10
 #define TRAIL_SIZE_MAX_PCT 200
-#define TRAIL_OPACITY_DEFAULT_PCT 100
+#define TRAIL_OPACITY_DEFAULT_PCT 50
 #define TRAIL_OPACITY_MAX_PCT 100
 #define TRAIL_FADE_LINEAR 0
 #define TRAIL_FADE_SMOOTH 1
 #define TRAIL_FADE_EXPONENTIAL 2
 #define TRAIL_FADE_DEFAULT TRAIL_FADE_SMOOTH
+
+#define CLICK_EVENTS_MAX 256u
+#define CLICK_DURATION_DEFAULT 0.50f
+#define CLICK_DURATION_MIN 0.1f
+#define CLICK_DURATION_MAX 2.0f
+#define CLICK_SIZE_DEFAULT_PCT 64
+#define CLICK_OPACITY_DEFAULT_PCT 25
+#define CLICK_ANIM_EXPAND 0
+#define CLICK_ANIM_CONTRACT 1
+#define CLICK_ANIM_PULSE 2
+#define CLICK_ANIM_DEFAULT CLICK_ANIM_PULSE
+#define MOUSE_BUTTON_LEFT 0x01L
+#define MOUSE_BUTTON_RIGHT 0x02L
+
+static volatile long shared_button_state;
+static volatile long shared_left_click_sequence;
+static volatile long shared_right_click_sequence;
 
 struct trail_point {
 	float x;
@@ -57,12 +79,22 @@ struct trail_point {
 	uint64_t time_ns;
 };
 
+struct click_event {
+	uint64_t time_ns;
+	bool left;
+};
+
 struct mouse_overlay_gg_data {
 	gs_image_file_t cursor_image;
 	gs_image_file_t trail_image;
+	gs_image_file_t click_lmb_image;
+	gs_image_file_t click_rmb_image;
 	gs_effect_t *trail_effect;
 	gs_eparam_t *trail_effect_image;
 	gs_eparam_t *trail_effect_opacity;
+	gs_effect_t *click_effect;
+	gs_eparam_t *click_effect_image;
+	gs_eparam_t *click_effect_opacity;
 
 	float cursor_size;
 	bool cursor_enabled;
@@ -83,6 +115,19 @@ struct mouse_overlay_gg_data {
 	float last_pushed_x;
 	float last_pushed_y;
 	bool has_last_pushed;
+
+	bool click_enabled;
+	bool click_left;
+	bool click_right;
+	float click_duration;
+	float click_size_pct;
+	float click_opacity_pct;
+	int click_anim;
+	size_t click_count;
+	size_t click_start;
+	long seen_left_click_sequence;
+	long seen_right_click_sequence;
+	struct click_event clicks[CLICK_EVENTS_MAX];
 };
 
 static const char *mouse_overlay_get_name(void *type_data)
@@ -110,6 +155,17 @@ static void mouse_overlay_get_defaults(obs_data_t *settings)
 				 TRAIL_OPACITY_DEFAULT_PCT);
 	obs_data_set_default_int(settings, "trail_fade",
 				 TRAIL_FADE_DEFAULT);
+	obs_data_set_default_bool(settings, "click_enabled", true);
+	obs_data_set_default_bool(settings, "click_left", true);
+	obs_data_set_default_bool(settings, "click_right", true);
+	obs_data_set_default_double(settings, "click_duration",
+				   CLICK_DURATION_DEFAULT);
+	obs_data_set_default_int(settings, "click_size",
+				 CLICK_SIZE_DEFAULT_PCT);
+	obs_data_set_default_int(settings, "click_opacity",
+				 CLICK_OPACITY_DEFAULT_PCT);
+	obs_data_set_default_int(settings, "click_anim",
+				 CLICK_ANIM_DEFAULT);
 }
 
 static obs_properties_t *mouse_overlay_get_properties(void *data)
@@ -121,29 +177,33 @@ static obs_properties_t *mouse_overlay_get_properties(void *data)
 	obs_properties_add_group(props, "cursor_enabled",
 				 obs_module_text("Cursor"),
 				 OBS_GROUP_CHECKABLE, cursor);
-	obs_properties_add_int(cursor, "cursor_size",
-			       obs_module_text("CursorSize"),
-			       (int)CURSOR_SIZE_MIN, (int)CURSOR_SIZE_MAX, 1);
+	obs_properties_add_int_slider(cursor, "cursor_size",
+				      obs_module_text("CursorSize"),
+				      (int)CURSOR_SIZE_MIN,
+				      (int)CURSOR_SIZE_MAX, 1);
 
 	obs_properties_t *const trail = obs_properties_create();
 	obs_properties_add_group(props, "trail_enabled",
 				 obs_module_text("Trail"),
 				 OBS_GROUP_CHECKABLE, trail);
-	obs_properties_add_int(trail, "trail_points",
-			       obs_module_text("TrailPoints"), 0,
-			       (int)TRAIL_POINTS_MAX, 1);
-	obs_properties_add_int(trail, "trail_size",
-			       obs_module_text("TrailSize"),
-			       TRAIL_SIZE_MIN_PCT, TRAIL_SIZE_MAX_PCT, 1);
-	obs_properties_add_int(trail, "trail_opacity",
-			       obs_module_text("TrailOpacity"), 0,
-			       TRAIL_OPACITY_MAX_PCT, 1);
-	obs_properties_add_float(trail, "trail_duration",
-				obs_module_text("TrailDuration"),
-				TRAIL_DURATION_MIN, TRAIL_DURATION_MAX, 0.1f);
-	obs_properties_add_float(trail, "trail_spacing",
-				obs_module_text("TrailSpacing"),
-				TRAIL_SPACING_MIN, TRAIL_SPACING_MAX, 0.1f);
+	obs_properties_add_int_slider(trail, "trail_points",
+				      obs_module_text("TrailPoints"), 0,
+				      (int)TRAIL_POINTS_MAX, 1);
+	obs_properties_add_int_slider(trail, "trail_size",
+				      obs_module_text("TrailSize"),
+				      TRAIL_SIZE_MIN_PCT,
+				      TRAIL_SIZE_MAX_PCT, 1);
+	obs_properties_add_int_slider(trail, "trail_opacity",
+				      obs_module_text("TrailOpacity"), 0,
+				      TRAIL_OPACITY_MAX_PCT, 1);
+	obs_properties_add_float_slider(trail, "trail_duration",
+					obs_module_text("TrailDuration"),
+					TRAIL_DURATION_MIN,
+					TRAIL_DURATION_MAX, 0.1f);
+	obs_properties_add_float_slider(trail, "trail_spacing",
+					obs_module_text("TrailSpacing"),
+					TRAIL_SPACING_MIN,
+					TRAIL_SPACING_MAX, 0.1f);
 	obs_properties_add_bool(trail, "trail_shrink",
 				obs_module_text("TrailShrink"));
 	obs_property_t *fade = obs_properties_add_list(
@@ -156,6 +216,37 @@ static obs_properties_t *mouse_overlay_get_properties(void *data)
 	obs_property_list_add_int(
 		fade, obs_module_text("TrailFadeExponential"),
 		TRAIL_FADE_EXPONENTIAL);
+
+	obs_properties_t *const click = obs_properties_create();
+	obs_properties_add_group(props, "click_enabled",
+				 obs_module_text("Clicks"),
+				 OBS_GROUP_CHECKABLE, click);
+	obs_properties_add_bool(click, "click_left",
+				obs_module_text("ClickLeft"));
+	obs_properties_add_bool(click, "click_right",
+				obs_module_text("ClickRight"));
+	obs_properties_add_int_slider(click, "click_size",
+				      obs_module_text("ClickSize"), 10, 400,
+				      1);
+	obs_properties_add_int_slider(click, "click_opacity",
+				      obs_module_text("ClickOpacity"), 10,
+				      100, 1);
+	obs_properties_add_float_slider(click, "click_duration",
+					obs_module_text("ClickDuration"),
+					CLICK_DURATION_MIN,
+					CLICK_DURATION_MAX, 0.05f);
+	obs_property_t *click_anim = obs_properties_add_list(
+		click, "click_anim", obs_module_text("ClickAnim"),
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(click_anim,
+				  obs_module_text("ClickAnimExpand"),
+				  CLICK_ANIM_EXPAND);
+	obs_property_list_add_int(click_anim,
+				  obs_module_text("ClickAnimContract"),
+				  CLICK_ANIM_CONTRACT);
+	obs_property_list_add_int(click_anim,
+				  obs_module_text("ClickAnimPulse"),
+				  CLICK_ANIM_PULSE);
 	return props;
 }
 
@@ -192,6 +283,22 @@ static void mouse_overlay_update(void *data, obs_data_t *settings)
 	if (shdata->trail_spacing <= 0.0f)
 		shdata->trail_spacing = TRAIL_SPACING_DEFAULT;
 
+	shdata->click_enabled = obs_data_get_bool(settings, "click_enabled");
+	shdata->click_left = obs_data_get_bool(settings, "click_left");
+	shdata->click_right = obs_data_get_bool(settings, "click_right");
+	shdata->click_duration =
+		(float)obs_data_get_double(settings, "click_duration");
+	if (shdata->click_duration <= 0.0f)
+		shdata->click_duration = CLICK_DURATION_DEFAULT;
+	shdata->click_size_pct = (float)obs_data_get_int(settings, "click_size");
+	shdata->click_opacity_pct =
+		(float)obs_data_get_int(settings, "click_opacity");
+	shdata->click_anim = (int)obs_data_get_int(settings, "click_anim");
+	if (!shdata->click_enabled) {
+		shdata->click_count = 0;
+		shdata->click_start = 0;
+	}
+
 	/* Apply buffer-affecting changes (enable/points) on the next tick. */
 	shdata->trail_dirty = true;
 }
@@ -201,17 +308,29 @@ static void *mouse_overlay_create(obs_data_t *settings, obs_source_t *source)
 	UNUSED_PARAMETER(source);
 
 	struct mouse_overlay_gg_data *data = bzalloc(sizeof(*data));
+	data->seen_left_click_sequence =
+		os_atomic_load_long(&shared_left_click_sequence);
+	data->seen_right_click_sequence =
+		os_atomic_load_long(&shared_right_click_sequence);
 
 	/* Apply settings at creation so an old saved scene without the new
 	 * keys works on first frame (defaults from mouse_overlay_update). */
 	mouse_overlay_update(data, settings);
 
-	char *path = obs_module_file("images/cursor.png");
+	char *path = obs_module_file("images/cursor-main.png");
 	gs_image_file_init(&data->cursor_image, path);
 	bfree(path);
 
-	path = obs_module_file("images/curosr-trail.png");
+	path = obs_module_file("images/cursor-trail.png");
 	gs_image_file_init(&data->trail_image, path);
+	bfree(path);
+
+	path = obs_module_file("images/cursor-LMB.png");
+	gs_image_file_init(&data->click_lmb_image, path);
+	bfree(path);
+
+	path = obs_module_file("images/cursor-RMB.png");
+	gs_image_file_init(&data->click_rmb_image, path);
 	bfree(path);
 
 	path = obs_module_file("trail.effect");
@@ -229,6 +348,21 @@ static void *mouse_overlay_create(obs_data_t *settings, obs_source_t *source)
 		blog(LOG_ERROR, "Failed to load trail.effect");
 	}
 
+	path = obs_module_file("click.effect");
+	obs_enter_graphics();
+	data->click_effect = gs_effect_create_from_file(path, NULL);
+	obs_leave_graphics();
+	bfree(path);
+
+	if (data->click_effect) {
+		data->click_effect_image =
+			gs_effect_get_param_by_name(data->click_effect, "image");
+		data->click_effect_opacity =
+			gs_effect_get_param_by_name(data->click_effect, "opacity");
+	} else {
+		blog(LOG_ERROR, "Failed to load click.effect");
+	}
+
 	return data;
 }
 
@@ -241,7 +375,10 @@ static void mouse_overlay_destroy(void *data)
 	obs_enter_graphics();
 	gs_image_file_free(&shdata->cursor_image);
 	gs_image_file_free(&shdata->trail_image);
+	gs_image_file_free(&shdata->click_lmb_image);
+	gs_image_file_free(&shdata->click_rmb_image);
 	gs_effect_destroy(shdata->trail_effect);
+	gs_effect_destroy(shdata->click_effect);
 	obs_leave_graphics();
 
 	bfree(shdata);
@@ -259,6 +396,9 @@ static uint32_t mouse_overlay_get_height(void *data)
 	return OVERLAY_HEIGHT;
 }
 
+static void mouse_overlay_push_click(struct mouse_overlay_gg_data *shdata,
+				     bool left, uint64_t now_ns);
+
 static void mouse_overlay_video_tick(void *data, float seconds)
 {
 	UNUSED_PARAMETER(seconds);
@@ -269,6 +409,8 @@ static void mouse_overlay_video_tick(void *data, float seconds)
 	float ny;
 	mouse_capture_sample_position(&nx, &ny);
 
+	const uint64_t now_ns = os_gettime_ns();
+
 	const float cursor_size = shdata->cursor_size;
 	const float half = cursor_size / 2.0f;
 	const float min = half;
@@ -277,6 +419,52 @@ static void mouse_overlay_video_tick(void *data, float seconds)
 
 	shdata->cursor_x = fminf(fmaxf(nx * OVERLAY_WIDTH, min), max_x);
 	shdata->cursor_y = fminf(fmaxf(ny * OVERLAY_HEIGHT, min), max_y);
+
+	/* Detect each button edge once globally, then let every source instance
+	 * consume the resulting sequence exactly once. */
+	bool left;
+	bool right;
+	mouse_capture_sample_buttons(&left, &right);
+	const long button_state = (left ? MOUSE_BUTTON_LEFT : 0) |
+				  (right ? MOUSE_BUTTON_RIGHT : 0);
+	const long previous_state =
+		os_atomic_exchange_long(&shared_button_state, button_state);
+	if ((button_state & MOUSE_BUTTON_LEFT) &&
+	    !(previous_state & MOUSE_BUTTON_LEFT))
+		os_atomic_inc_long(&shared_left_click_sequence);
+	if ((button_state & MOUSE_BUTTON_RIGHT) &&
+	    !(previous_state & MOUSE_BUTTON_RIGHT))
+		os_atomic_inc_long(&shared_right_click_sequence);
+
+	const long left_sequence =
+		os_atomic_load_long(&shared_left_click_sequence);
+	const long right_sequence =
+		os_atomic_load_long(&shared_right_click_sequence);
+	if (shdata->seen_left_click_sequence != left_sequence) {
+		shdata->seen_left_click_sequence = left_sequence;
+		if (shdata->click_enabled && shdata->click_left)
+			mouse_overlay_push_click(shdata, true, now_ns);
+	}
+	if (shdata->seen_right_click_sequence != right_sequence) {
+		shdata->seen_right_click_sequence = right_sequence;
+		if (shdata->click_enabled && shdata->click_right)
+			mouse_overlay_push_click(shdata, false, now_ns);
+	}
+
+	/* Expire finished click effects. */
+	const uint64_t click_duration_ns =
+		(uint64_t)(shdata->click_duration * 1000000000.0);
+	while (shdata->click_count > 0) {
+		const struct click_event *const ev =
+			&shdata->clicks[shdata->click_start];
+		if (now_ns - ev->time_ns >= click_duration_ns) {
+			shdata->click_start =
+				(shdata->click_start + 1) % CLICK_EVENTS_MAX;
+			shdata->click_count--;
+			continue;
+		}
+		break;
+	}
 
 	/* Settings changed since last tick: apply to the buffer now so the
 	 * render thread never sees a half-updated ring. */
@@ -300,7 +488,6 @@ static void mouse_overlay_video_tick(void *data, float seconds)
 	}
 
 	/* Expire points older than the configured duration. */
-	const uint64_t now_ns = os_gettime_ns();
 	const int64_t duration_ns =
 		(int64_t)(shdata->trail_duration * 1000000000.0);
 	/* Back-date interpolated points across the whole frame time. */
@@ -373,6 +560,24 @@ static void mouse_overlay_video_tick(void *data, float seconds)
 	shdata->has_last_pushed = true;
 }
 
+static void mouse_overlay_push_click(struct mouse_overlay_gg_data *shdata,
+				     bool left, uint64_t now_ns)
+{
+	if (shdata->click_count < CLICK_EVENTS_MAX) {
+		shdata->click_count++;
+	} else {
+		shdata->click_start =
+			(shdata->click_start + 1) % CLICK_EVENTS_MAX;
+	}
+
+	const size_t next =
+		(shdata->click_start + shdata->click_count - 1) %
+		CLICK_EVENTS_MAX;
+	struct click_event *ev = &shdata->clicks[next];
+	ev->time_ns = now_ns;
+	ev->left = left;
+}
+
 static void mouse_overlay_draw_sprite(gs_eparam_t *image_param,
 				      gs_eparam_t *opacity_param,
 				      gs_texture_t *texture, float x, float y,
@@ -400,6 +605,10 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 		gs_image_file_init_texture(&shdata->cursor_image);
 	if (!shdata->trail_image.texture && shdata->trail_image.loaded)
 		gs_image_file_init_texture(&shdata->trail_image);
+	if (!shdata->click_lmb_image.texture && shdata->click_lmb_image.loaded)
+		gs_image_file_init_texture(&shdata->click_lmb_image);
+	if (!shdata->click_rmb_image.texture && shdata->click_rmb_image.loaded)
+		gs_image_file_init_texture(&shdata->click_rmb_image);
 
 	gs_effect_t *default_effect = NULL;
 	gs_technique_t *default_tech = NULL;
@@ -415,7 +624,10 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 		}
 	}
 
-	if (!default_effect && !(shdata->trail_enabled && shdata->trail_image.texture))
+	if (!default_effect &&
+	    !(shdata->trail_enabled && shdata->trail_image.texture) &&
+	    !(shdata->click_effect && shdata->click_enabled &&
+	      shdata->click_count > 0))
 		return;
 
 	gs_blend_state_push();
@@ -485,7 +697,7 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 	}
 
 	if (shdata->cursor_enabled && default_tech) {
-		/* Draw the cursor with full opacity. */
+		/* Draw the main cursor before click textures overlay it. */
 		const size_t default_passes = gs_technique_begin(default_tech);
 		for (size_t i = 0; i < default_passes; i++) {
 			gs_technique_begin_pass(default_tech, i);
@@ -498,6 +710,72 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 		}
 		gs_technique_end(default_tech);
 		gs_effect_set_texture_srgb(default_image_param, NULL);
+	}
+
+	/* Draw click textures last so they overlay the main cursor. */
+	gs_effect_t *const click_effect = shdata->click_effect;
+	if (click_effect && shdata->click_count > 0) {
+		gs_technique_t *const click_tech =
+			gs_effect_get_technique(click_effect, "DrawClick");
+		if (click_tech) {
+			const uint64_t now_ns = os_gettime_ns();
+			const float duration = shdata->click_duration;
+			const float base_size = shdata->cursor_size *
+					       (shdata->click_size_pct /
+						100.0f);
+
+			const size_t click_passes =
+				gs_technique_begin(click_tech);
+			for (size_t i = 0; i < click_passes; i++) {
+				gs_technique_begin_pass(click_tech, i);
+				for (size_t j = 0; j < shdata->click_count;
+				     j++) {
+					const size_t idx =
+						(shdata->click_start + j) %
+						CLICK_EVENTS_MAX;
+					const struct click_event *const ev =
+						&shdata->clicks[idx];
+					const float raw_age =
+						(float)(now_ns - ev->time_ns) *
+						1e-9f;
+					float t = raw_age / duration;
+					if (t >= 1.0f)
+						continue;
+					if (t < 0.0f)
+						t = 0.0f;
+
+					float scale = 0.5f + t;
+					if (shdata->click_anim ==
+					    CLICK_ANIM_CONTRACT)
+						scale = 1.5f - t;
+					else if (shdata->click_anim ==
+						 CLICK_ANIM_PULSE)
+						scale = 1.0f +
+							0.5f * sinf((float)M_PI * t);
+
+					const float opacity =
+						(1.0f - t) *
+						(shdata->click_opacity_pct /
+						 100.0f);
+					gs_texture_t *texture =
+						ev->left ?
+							shdata->click_lmb_image
+								.texture :
+							shdata->click_rmb_image
+								.texture;
+					if (!texture)
+						continue;
+					mouse_overlay_draw_sprite(
+						shdata->click_effect_image,
+						shdata->click_effect_opacity,
+						texture, shdata->cursor_x,
+						shdata->cursor_y,
+						base_size * scale, opacity);
+				}
+				gs_technique_end_pass(click_tech);
+			}
+			gs_technique_end(click_tech);
+		}
 	}
 
 	gs_blend_state_pop();

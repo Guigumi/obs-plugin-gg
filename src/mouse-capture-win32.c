@@ -67,3 +67,9 @@ void mouse_capture_sample_position(float *x, float *y)
 	*x = fminf(fmaxf(nx, 0.0f), 1.0f);
 	*y = fminf(fmaxf(ny, 0.0f), 1.0f);
 }
+
+void mouse_capture_sample_buttons(bool *left, bool *right)
+{
+	*left = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+	*right = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+}
