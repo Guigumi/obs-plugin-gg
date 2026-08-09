@@ -19,6 +19,8 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #ifndef MOUSE_CAPTURE_H
 #define MOUSE_CAPTURE_H
 
+#include <stdbool.h>
+
 /*
  * Queries the current cursor position and stores it normalized to
  * [0, 1] in *x/*y using the virtual desktop bounds. If the position
@@ -35,6 +37,6 @@ void mouse_capture_get_button_sequences(long *left, long *right);
 /* Samples both buttons and returns monotonically increasing sequences.
  * A sequence changes once per press regardless of how many source instances
  * sample it, so each instance can consume the same edge exactly once. */
-void mouse_capture_sample_button_sequences(long *left, long *right);
+void mouse_capture_sample_button_sequences(long *left, long *right, bool *left_down, bool *right_down);
 
 #endif

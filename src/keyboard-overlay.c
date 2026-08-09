@@ -90,6 +90,18 @@ static const char *keyboard_overlay_get_name(void *type_data)
 	return obs_module_text("KeyboardSourceName");
 }
 
+static const char *keyboard_overlay_get_dark_icon(void *type_data)
+{
+	UNUSED_PARAMETER(type_data);
+	return obs_module_file("icons/keyboard-dark.svg");
+}
+
+static const char *keyboard_overlay_get_light_icon(void *type_data)
+{
+	UNUSED_PARAMETER(type_data);
+	return obs_module_file("icons/keyboard-light.svg");
+}
+
 static void keyboard_overlay_get_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, "keyboard_enabled", true);
@@ -343,4 +355,7 @@ struct obs_source_info keyboard_overlay_gg_source_info = {
 	.get_height = keyboard_overlay_get_height,
 	.video_tick = keyboard_overlay_video_tick,
 	.video_render = keyboard_overlay_video_render,
+	.icon_type = OBS_ICON_TYPE_CUSTOM,
+	.get_dark_icon = keyboard_overlay_get_dark_icon,
+	.get_light_icon = keyboard_overlay_get_light_icon,
 };
