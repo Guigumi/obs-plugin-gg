@@ -80,6 +80,8 @@ struct trail_point {
 };
 
 struct click_event {
+	float x;
+	float y;
 	uint64_t time_ns;
 	bool left;
 };
@@ -574,6 +576,8 @@ static void mouse_overlay_push_click(struct mouse_overlay_gg_data *shdata,
 		(shdata->click_start + shdata->click_count - 1) %
 		CLICK_EVENTS_MAX;
 	struct click_event *ev = &shdata->clicks[next];
+	ev->x = shdata->cursor_x;
+	ev->y = shdata->cursor_y;
 	ev->time_ns = now_ns;
 	ev->left = left;
 }
@@ -768,8 +772,7 @@ static void mouse_overlay_video_render(void *data, gs_effect_t *effect)
 					mouse_overlay_draw_sprite(
 						shdata->click_effect_image,
 						shdata->click_effect_opacity,
-						texture, shdata->cursor_x,
-						shdata->cursor_y,
+						texture, ev->x, ev->y,
 						base_size * scale, opacity);
 				}
 				gs_technique_end_pass(click_tech);
