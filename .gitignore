@@ -16,6 +16,8 @@
 !LICENSE
 !README.md
 !PLAN.md
+!/tests/
+!/tests/**
 
 # Exclude lock files
 *.lock.json

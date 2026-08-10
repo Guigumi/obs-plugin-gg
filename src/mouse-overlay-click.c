@@ -250,6 +250,10 @@ void mouse_click_render(const struct mouse_click_state *click, const struct mous
 	const bool left_held = cursor->visible && click->left_enabled && click->left_down && !left_animating;
 	const bool right_held = cursor->visible && click->right_enabled && click->right_down && !right_animating;
 	mouse_resources_set_tint(resources->click_effect_tint, click->tint_color);
+	gs_effect_set_texture(resources->click_effect_image, NULL);
+	gs_effect_set_float(resources->click_effect_opacity, click->opacity);
+	gs_effect_set_float(resources->click_effect_side, 0.0f);
+	gs_effect_set_float(resources->click_effect_size, cursor->size);
 
 	const size_t passes = gs_technique_begin(resources->click_technique);
 	for (size_t i = 0; i < passes; i++) {

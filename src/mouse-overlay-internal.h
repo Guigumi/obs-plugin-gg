@@ -50,8 +50,8 @@ struct mouse_overlay_resources {
 	gs_eparam_t *trail_effect_opacity;
 	gs_eparam_t *trail_effect_tint;
 	gs_effect_t *click_effect;
-	gs_technique_t *cursor_technique;
 	gs_technique_t *click_technique;
+	gs_technique_t *cursor_technique;
 	gs_eparam_t *click_effect_image;
 	gs_eparam_t *click_effect_opacity;
 	gs_eparam_t *click_effect_tint;

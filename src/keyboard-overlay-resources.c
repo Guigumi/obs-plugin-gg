@@ -174,6 +174,12 @@ static void keyboard_resources_draw_key(gs_eparam_t *image_param, gs_eparam_t *o
 	gs_matrix_pop();
 }
 
+static void keyboard_resources_prepare_draw(gs_eparam_t *image_param, gs_eparam_t *opacity_param, gs_texture_t *texture)
+{
+	gs_effect_set_texture(image_param, texture);
+	gs_effect_set_float(opacity_param, 1.0f);
+}
+
 void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 {
 	if (!keyboard->enabled || !keyboard->effect || !keyboard->effect_technique ||
@@ -190,6 +196,8 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 	float key_opacities[KEYBOARD_KEY_COUNT];
 	float circle_opacities[KEYBOARD_KEY_COUNT];
 	float border_opacities[KEYBOARD_KEY_COUNT];
+	bool has_circle = false;
+	bool has_border = false;
 
 	const float tint_red = (float)(keyboard->tint_color & 0xFF) / 255.0f;
 	const float tint_green = (float)((keyboard->tint_color >> 8) & 0xFF) / 255.0f;
@@ -213,6 +221,8 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 		key_opacities[key] = idle_opacity + (active_opacity - idle_opacity) * key_color_level;
 		circle_opacities[key] = active_opacity * key_color_level * 0.35f;
 		border_opacities[key] = active_opacity * pulse_level * 0.22f;
+		has_circle = has_circle || circle_opacities[key] > 0.001f;
+		has_border = has_border || border_opacities[key] > 0.001f;
 	}
 
 	struct vec4 tint;
@@ -237,6 +247,7 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 	gs_matrix_mul(&rotation);
 	gs_matrix_translate3f(-base_width / 2.0f, -base_height / 2.0f, 0.0f);
 
+	keyboard_resources_prepare_draw(keyboard->effect_image, keyboard->effect_opacity, keyboard->main_image.texture);
 	const size_t passes = gs_technique_begin(keyboard->effect_technique);
 	for (size_t pass = 0; pass < passes; pass++) {
 		gs_technique_begin_pass(keyboard->effect_technique, pass);
@@ -251,37 +262,49 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 	}
 	gs_technique_end(keyboard->effect_technique);
 
-	const size_t circle_passes = gs_technique_begin(keyboard->effect_circle_technique);
-	for (size_t pass = 0; pass < circle_passes; pass++) {
-		gs_technique_begin_pass(keyboard->effect_circle_technique, pass);
-		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
-			const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-			const float effect_size = keyboard->key_size * KEY_EFFECT_SIZE_RATIO;
-			if (key_data->visible && circle_opacities[key] > 0.001f)
-				keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-							    keyboard->main_image.texture, key_data->x, key_data->y,
-							    effect_size, effect_size, circle_opacities[key]);
+	if (has_circle) {
+		keyboard_resources_prepare_draw(keyboard->effect_image, keyboard->effect_opacity,
+						keyboard->main_image.texture);
+		const size_t circle_passes = gs_technique_begin(keyboard->effect_circle_technique);
+		for (size_t pass = 0; pass < circle_passes; pass++) {
+			gs_technique_begin_pass(keyboard->effect_circle_technique, pass);
+			for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
+				const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
+				const float effect_size = keyboard->key_size * KEY_EFFECT_SIZE_RATIO;
+				if (key_data->visible && circle_opacities[key] > 0.001f)
+					keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
+								    keyboard->main_image.texture, key_data->x,
+								    key_data->y, effect_size, effect_size,
+								    circle_opacities[key]);
+			}
+			gs_technique_end_pass(keyboard->effect_circle_technique);
 		}
-		gs_technique_end_pass(keyboard->effect_circle_technique);
+		gs_technique_end(keyboard->effect_circle_technique);
 	}
-	gs_technique_end(keyboard->effect_circle_technique);
 
-	const size_t border_passes = gs_technique_begin(keyboard->effect_border_technique);
-	for (size_t pass = 0; pass < border_passes; pass++) {
-		gs_technique_begin_pass(keyboard->effect_border_technique, pass);
-		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
-			const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-			if (key_data->visible && border_opacities[key] > 0.001f)
-				keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-							    keyboard->main_image.texture, key_data->x, key_data->y,
-							    key_data->width, key_data->height, border_opacities[key]);
+	if (has_border) {
+		keyboard_resources_prepare_draw(keyboard->effect_image, keyboard->effect_opacity,
+						keyboard->main_image.texture);
+		const size_t border_passes = gs_technique_begin(keyboard->effect_border_technique);
+		for (size_t pass = 0; pass < border_passes; pass++) {
+			gs_technique_begin_pass(keyboard->effect_border_technique, pass);
+			for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
+				const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
+				if (key_data->visible && border_opacities[key] > 0.001f)
+					keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
+								    keyboard->main_image.texture, key_data->x,
+								    key_data->y, key_data->width, key_data->height,
+								    border_opacities[key]);
+			}
+			gs_technique_end_pass(keyboard->effect_border_technique);
 		}
-		gs_technique_end_pass(keyboard->effect_border_technique);
+		gs_technique_end(keyboard->effect_border_technique);
 	}
-	gs_technique_end(keyboard->effect_border_technique);
 
 	vec4_from_rgba(&tint, label_color | 0xFF000000);
 	gs_effect_set_vec4(keyboard->effect_tint, &tint);
+	keyboard_resources_prepare_draw(keyboard->effect_image, keyboard->effect_opacity,
+					keyboard->keys[0].label_texture);
 	const size_t label_passes = gs_technique_begin(keyboard->effect_technique);
 	for (size_t pass = 0; pass < label_passes; pass++) {
 		gs_technique_begin_pass(keyboard->effect_technique, pass);

@@ -165,6 +165,8 @@ void mouse_trail_tick(struct mouse_trail_state *trail, const struct mouse_cursor
 	}
 
 	mouse_trail_prune(trail, now_ns);
+	if (!trail->count)
+		trail->has_sample = false;
 	if (!cursor->visible || !trail->enabled || !trail->point_limit)
 		return;
 	mouse_trail_sample(trail, cursor->x, cursor->y, now_ns);
@@ -182,6 +184,8 @@ void mouse_trail_render(const struct mouse_trail_state *trail, const struct mous
 	if (!mouse_trail_can_render(trail, resources))
 		return;
 	mouse_resources_set_tint(resources->trail_effect_tint, trail->tint_color);
+	gs_effect_set_texture(resources->trail_effect_image, resources->trail_image.texture);
+	gs_effect_set_float(resources->trail_effect_opacity, trail->opacity);
 	const size_t passes = gs_technique_begin(resources->trail_technique);
 	for (size_t i = 0; i < passes; i++) {
 		gs_technique_begin_pass(resources->trail_technique, i);

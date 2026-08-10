@@ -212,6 +212,10 @@ void mouse_cursor_render(const struct mouse_cursor_state *cursor, struct mouse_o
 	float positions[4][2];
 	const size_t position_count =
 		mouse_cursor_draw_positions(cursor, cursor->x, cursor->y, cursor->size, positions);
+	gs_effect_set_float(resources->click_effect_side, 0.0f);
+	gs_effect_set_float(resources->click_effect_size, cursor->size);
+	gs_effect_set_texture(resources->click_effect_image, resources->cursor_image.texture);
+	gs_effect_set_float(resources->click_effect_opacity, cursor->opacity);
 	const size_t passes = gs_technique_begin(resources->cursor_technique);
 	for (size_t i = 0; i < passes; i++) {
 		gs_technique_begin_pass(resources->cursor_technique, i);

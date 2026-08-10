@@ -20,6 +20,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include <windows.h>
 
+#include <stdint.h>
 #include <string.h>
 
 #define RAW_INPUT_WINDOW_CLASS L"MouseOverlayGGKeyboardRawInput"
@@ -27,6 +28,8 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define RAW_INPUT_RECONCILE_MS 250u
 #define RAW_INPUT_OWNERSHIP_TIMER 2u
 #define RAW_INPUT_OWNERSHIP_MS 1000u
+#define RAW_INPUT_EVENT_TIMEOUT_MS 100u
+#define KEYBOARD_FALLBACK_POLL_MS 5u
 #define RAW_INPUT_DEVICE_MAX 32u
 
 static const int wasd_virtual_keys[KEYBOARD_KEY_COUNT] = {'W', 'A', 'S', 'D'};
@@ -49,6 +52,7 @@ static DWORD raw_input_thread_id;
 static void *volatile raw_input_window;
 static volatile LONG raw_input_available;
 static volatile LONG raw_input_registered;
+static volatile LONG64 raw_input_last_event_time;
 
 static bool key_down(int virtual_key)
 {
@@ -212,6 +216,7 @@ static LRESULT CALLBACK raw_input_window_proc(HWND window, UINT message, WPARAM 
 		if (GetRawInputData((HRAWINPUT)lparam, RID_INPUT, &input, &size, sizeof(RAWINPUTHEADER)) == size &&
 		    input.header.dwType == RIM_TYPEKEYBOARD && input.data.keyboard.VKey != 0xFF) {
 			const bool down = (input.data.keyboard.Flags & RI_KEY_BREAK) == 0;
+			InterlockedExchange64(&raw_input_last_event_time, (LONG64)GetTickCount64());
 			update_raw_key(input.header.hDevice, input.data.keyboard.VKey, down);
 		}
 		return DefWindowProcW(window, message, wparam, lparam);
@@ -280,10 +285,30 @@ static DWORD WINAPI raw_input_thread_proc(void *param)
 	}
 	SetEvent(raw_input_ready_event);
 
-	MSG message;
-	while (GetMessageW(&message, NULL, 0, 0) > 0) {
-		TranslateMessage(&message);
-		DispatchMessageW(&message);
+	bool running = true;
+	while (running) {
+		uint64_t last_raw_event;
+		bool raw_event_stale;
+		const DWORD wait_result = MsgWaitForMultipleObjectsEx(0, NULL, KEYBOARD_FALLBACK_POLL_MS, QS_ALLINPUT,
+								      MWMO_INPUTAVAILABLE);
+		if (wait_result == WAIT_TIMEOUT) {
+			last_raw_event = (uint64_t)InterlockedCompareExchange64(&raw_input_last_event_time, 0, 0);
+			raw_event_stale = !last_raw_event ||
+					  GetTickCount64() - last_raw_event >= RAW_INPUT_EVENT_TIMEOUT_MS;
+			if (!InterlockedCompareExchange(&raw_input_available, 0, 0) || raw_event_stale)
+				reconcile_wasd_states();
+			continue;
+		}
+
+		MSG message;
+		while (PeekMessageW(&message, NULL, 0, 0, PM_REMOVE)) {
+			if (message.message == WM_QUIT) {
+				running = false;
+				break;
+			}
+			TranslateMessage(&message);
+			DispatchMessageW(&message);
+		}
 	}
 
 	RAWINPUTDEVICE current_device;

@@ -113,6 +113,8 @@ static void keyboard_overlay_video_tick(void *data, float seconds)
 static void keyboard_overlay_video_render(void *data, gs_effect_t *effect)
 {
 	UNUSED_PARAMETER(effect);
+	/* Capture events that arrived after video_tick before drawing this frame. */
+	keyboard_keys_tick(data, 0.0f);
 	keyboard_resources_render(data);
 }
 

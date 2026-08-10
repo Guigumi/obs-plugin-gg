@@ -6,6 +6,8 @@ project(${_name} VERSION ${_version})
 
 option(ENABLE_FRONTEND_API "Use obs-frontend-api for UI functionality" OFF)
 option(ENABLE_QT "Use Qt functionality" OFF)
+option(ENABLE_TESTING "Enable unit test suite" ON)
+set(OBS_TEST_BIN_DIR "C:/Program Files/obs-studio/bin/64bit" CACHE PATH "OBS binary directory used by unit tests")
 
 include(compilerconfig)
 include(defaults)
@@ -15,6 +17,11 @@ add_library(${CMAKE_PROJECT_NAME} MODULE)
 
 find_package(libobs REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
+
+if(ENABLE_TESTING)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
 
 if(WIN32)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE gdi32 user32)
