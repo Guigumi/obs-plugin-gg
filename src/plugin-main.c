@@ -1,5 +1,5 @@
 /*
-Mouse Overlay GG
+ Mouse
 Copyright (C) 2026 GUI
 
 This program is free software; you can redistribute it and/or modify

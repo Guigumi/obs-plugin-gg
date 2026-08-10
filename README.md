@@ -6,7 +6,7 @@ A pair of sources for [OBS Studio](https://obsproject.com) that show your mouse 
 
 Two sources, each one on its own:
 
-- **Mouse Overlay GG** shows the cursor (always, or only while in a game), a trail behind it, and a highlight effect on clicks. You pick the monitor, then set the size, opacity, and color of each piece.
+- **Mouse** shows the cursor (always, or only while in a game), a trail behind it, and a highlight effect on clicks. You pick the monitor, then set the size, opacity, and color of each piece.
 - **Keyboard** is an on-screen keyboard that lights up as you type. It comes with WASD, ESDF, Arrows, and Numpad 1-5 presets, and a custom mode where you can change the label of any key.
 
 Neither is a filter. You add them as sources, the same way you'd add a browser or an image.
@@ -24,7 +24,7 @@ OBS is the only dependency. No extra programs or drivers required.
 
 **Adding the mouse:**
 
-1. In **Sources**, click `+` and pick **Mouse Overlay GG**.
+1. In **Sources**, click `+` and pick **Mouse**.
 2. Give it a name and confirm. The source shows up in your scene.
 3. In the properties, use the **Cursor**, **Trail**, and **Clicks** checkboxes to turn each part on or off.
 4. Move the source above your game capture in the scene list so the overlay sits on top.

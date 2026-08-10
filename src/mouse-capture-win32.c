@@ -1,5 +1,5 @@
 /*
-Mouse Overlay GG
+ Mouse
 Copyright (C) 2026 GUI
 
 This program is free software; you can redistribute it and/or modify
@@ -35,7 +35,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define GAME_DETECTION_HYSTERESIS_MS 2000u
 #define RAW_INPUT_RECENT_MS 500u
 #define RAW_INPUT_OWNERSHIP_CACHE_MS 1000u
-#define RAW_INPUT_WINDOW_CLASS L"MouseOverlayGGRawInput"
+#define RAW_INPUT_WINDOW_CLASS L"MouseRawInput"
 
 static volatile long shared_button_state;
 static volatile long shared_left_click_sequence;

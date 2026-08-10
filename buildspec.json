@@ -37,9 +37,9 @@
         }
     },
     "name": "mouse-overlay-gg",
-    "displayName": "Mouse Overlay GG",
+    "displayName": "Mouse",
     "version": "0.1.0",
     "author": "GUI",
-    "website": "https://github.com",
-    "email": "gui@example.com"
+    "website": "https://github.com/Guigumi/obs-plugin-gg",
+    "email": "jorgeguilherme.gg@gmail.com"
 }

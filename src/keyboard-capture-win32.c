@@ -1,5 +1,5 @@
 /*
-Mouse Overlay GG
+ Mouse
 Copyright (C) 2026 GUI
 
 This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <stdint.h>
 #include <string.h>
 
-#define RAW_INPUT_WINDOW_CLASS L"MouseOverlayGGKeyboardRawInput"
+#define RAW_INPUT_WINDOW_CLASS L"MouseKeyboardRawInput"
 #define RAW_INPUT_RECONCILE_TIMER 1u
 #define RAW_INPUT_RECONCILE_MS 250u
 #define RAW_INPUT_OWNERSHIP_TIMER 2u
