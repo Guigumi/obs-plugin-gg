@@ -43,6 +43,7 @@ struct keyboard_overlay_gg_data {
 	float spacing;
 	float idle_opacity_pct;
 	float active_opacity_pct;
+	float fade_duration;
 	float pulse_duration;
 	float rotation_deg;
 	uint32_t tint_color;

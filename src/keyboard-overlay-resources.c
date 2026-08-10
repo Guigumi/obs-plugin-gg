@@ -187,6 +187,7 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 	const float idle_opacity = keyboard->idle_opacity_pct / 100.0f;
 	const float active_opacity = keyboard->active_opacity_pct / 100.0f;
 	const uint64_t now_ns = os_gettime_ns();
+	float key_opacities[KEYBOARD_KEY_COUNT];
 	float circle_opacities[KEYBOARD_KEY_COUNT];
 	float border_opacities[KEYBOARD_KEY_COUNT];
 
@@ -208,7 +209,9 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 			pulse_level = sinf((float)M_PI * t);
 		}
 		const float color_level = use_color ? key_data->color_level : 0.0f;
-		circle_opacities[key] = active_opacity * color_level * 0.35f;
+		const float key_color_level = use_color ? color_level : 0.0f;
+		key_opacities[key] = idle_opacity + (active_opacity - idle_opacity) * key_color_level;
+		circle_opacities[key] = active_opacity * key_color_level * 0.35f;
 		border_opacities[key] = active_opacity * pulse_level * 0.22f;
 	}
 
@@ -239,10 +242,10 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 		gs_technique_begin_pass(keyboard->effect_technique, pass);
 		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 			const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-			if (key_data->visible && keyboard->main_image.texture && idle_opacity > 0.0f)
+			if (key_data->visible && keyboard->main_image.texture && key_opacities[key] > 0.0f)
 				keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
 							    keyboard->main_image.texture, key_data->x, key_data->y,
-							    key_data->width, key_data->height, idle_opacity);
+							    key_data->width, key_data->height, key_opacities[key]);
 		}
 		gs_technique_end_pass(keyboard->effect_technique);
 	}
@@ -284,11 +287,11 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 		gs_technique_begin_pass(keyboard->effect_technique, pass);
 		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 			const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-			if (!key_data->visible || !key_data->label_texture || idle_opacity <= 0.0f)
+			if (!key_data->visible || !key_data->label_texture || key_opacities[key] <= 0.0f)
 				continue;
 			keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
 						    key_data->label_texture, key_data->x, key_data->y, key_data->width,
-						    key_data->height, idle_opacity);
+						    key_data->height, key_opacities[key]);
 		}
 		gs_technique_end_pass(keyboard->effect_technique);
 	}

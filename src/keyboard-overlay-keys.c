@@ -4,6 +4,7 @@
 
 #include <util/platform.h>
 
+#include <float.h>
 #include <math.h>
 #include <string.h>
 
@@ -18,7 +19,9 @@
 #define KEY_PULSE_DURATION_DEFAULT 0.35f
 #define KEY_PULSE_DURATION_MIN 0.1f
 #define KEY_PULSE_DURATION_MAX 2.0f
-#define KEY_COLOR_FADE_SECONDS 0.10f
+#define KEY_COLOR_FADE_DURATION_DEFAULT 0.03f
+#define KEY_COLOR_FADE_DURATION_MIN 0.01f
+#define KEY_COLOR_FADE_DURATION_MAX 0.50f
 #define KEY_ROTATION_DEFAULT 0.0f
 #define KEY_ROTATION_MIN -180.0f
 #define KEY_ROTATION_MAX 180.0f
@@ -67,6 +70,7 @@ void keyboard_keys_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "keyboard_spacing", KEY_SPACING_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_idle_opacity", KEY_IDLE_OPACITY_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_active_opacity", KEY_ACTIVE_OPACITY_DEFAULT);
+	obs_data_set_default_double(settings, "keyboard_fade_duration", KEY_COLOR_FADE_DURATION_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_pulse_duration", KEY_PULSE_DURATION_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_rotation", KEY_ROTATION_DEFAULT);
 	obs_data_set_default_int(settings, "keyboard_tint_color", KEY_TINT_COLOR_DEFAULT);
@@ -91,6 +95,8 @@ void keyboard_keys_add_properties(obs_properties_t *props)
 					100.0f, 1.0f);
 	obs_properties_add_float_slider(keyboard, "keyboard_active_opacity", obs_module_text("KeyboardActiveOpacity"),
 					0.0f, 100.0f, 1.0f);
+	obs_properties_add_float_slider(keyboard, "keyboard_fade_duration", obs_module_text("KeyboardFadeDuration"),
+					KEY_COLOR_FADE_DURATION_MIN, KEY_COLOR_FADE_DURATION_MAX, 0.01f);
 	obs_properties_add_float_slider(keyboard, "keyboard_pulse_duration", obs_module_text("KeyboardPulseDuration"),
 					KEY_PULSE_DURATION_MIN, KEY_PULSE_DURATION_MAX, 0.05f);
 	obs_properties_add_bool(keyboard, "keyboard_arrow_aliases", obs_module_text("KeyboardArrowAliases"));
@@ -123,6 +129,7 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	keyboard->spacing = (float)obs_data_get_double(settings, "keyboard_spacing");
 	keyboard->idle_opacity_pct = (float)obs_data_get_double(settings, "keyboard_idle_opacity");
 	keyboard->active_opacity_pct = (float)obs_data_get_double(settings, "keyboard_active_opacity");
+	const double configured_fade_duration = obs_data_get_double(settings, "keyboard_fade_duration");
 	keyboard->pulse_duration = (float)obs_data_get_double(settings, "keyboard_pulse_duration");
 	keyboard->rotation_deg = (float)obs_data_get_double(settings, "keyboard_rotation");
 	keyboard->tint_color = (uint32_t)obs_data_get_int(settings, "keyboard_tint_color");
@@ -140,6 +147,13 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	if (!isfinite(keyboard->active_opacity_pct))
 		keyboard->active_opacity_pct = KEY_ACTIVE_OPACITY_DEFAULT;
 	keyboard->active_opacity_pct = fminf(fmaxf(keyboard->active_opacity_pct, 0.0f), 100.0f);
+	if (!obs_data_has_user_value(settings, "keyboard_fade_duration") || !isfinite(configured_fade_duration) ||
+	    configured_fade_duration > FLT_MAX)
+		keyboard->fade_duration = KEY_COLOR_FADE_DURATION_DEFAULT;
+	else
+		keyboard->fade_duration = (float)configured_fade_duration;
+	keyboard->fade_duration =
+		fminf(fmaxf(keyboard->fade_duration, KEY_COLOR_FADE_DURATION_MIN), KEY_COLOR_FADE_DURATION_MAX);
 	if (!isfinite(keyboard->pulse_duration))
 		keyboard->pulse_duration = KEY_PULSE_DURATION_DEFAULT;
 	keyboard->pulse_duration =
@@ -171,20 +185,21 @@ void keyboard_keys_tick(struct keyboard_overlay_gg_data *keyboard, float seconds
 	struct keyboard_capture_snapshot snapshot;
 	keyboard_capture_sample_wasd(keyboard->arrow_aliases, &snapshot);
 	const uint64_t now_ns = os_gettime_ns();
-	const float fade_step = fminf(seconds / KEY_COLOR_FADE_SECONDS, 1.0f);
+	const float fade_step = fminf(seconds / keyboard->fade_duration, 1.0f);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		struct keyboard_overlay_key_data *key = &keyboard->keys[i];
 		const enum keyboard_overlay_key capture_key = key->capture_key;
 		const bool new_press = keyboard->capture_snapshot_initialized &&
 				       (snapshot.press_sequences[capture_key] != key->press_sequence ||
 					snapshot.pressed[capture_key] && !key->pressed);
-		if (new_press)
+		if (new_press) {
 			key->press_time_ns = now_ns;
-		if (new_press && !snapshot.pressed[capture_key])
 			key->color_level = 1.0f;
-		const float target = snapshot.pressed[capture_key] ? 1.0f : 0.0f;
-		if (!new_press || snapshot.pressed[capture_key])
-			key->color_level += (target - key->color_level) * fade_step;
+		}
+		if (snapshot.pressed[capture_key])
+			key->color_level = 1.0f;
+		else if (!new_press)
+			key->color_level = fmaxf(key->color_level - fade_step, 0.0f);
 		key->pressed = snapshot.pressed[capture_key];
 		key->press_sequence = snapshot.press_sequences[capture_key];
 	}
