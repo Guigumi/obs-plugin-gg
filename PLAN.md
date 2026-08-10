@@ -61,6 +61,16 @@ Após medir o comportamento do plugin, vamos decidir quais recursos valem o cust
 - Evitar opções que deixem a configuração extensa sem resolver uma necessidade real.
 - Registrar as decisões de compatibilidade e desempenho antes de adicionar cada nova opção.
 
+## Lançamento 1.0.0
+
+- Distribuir Mouse e Teclado juntos no instalador `Input_overlay_gg_v1.0.0_Setup.exe`.
+- Instalar a DLL em `bin\64bit` e os assets/locales nas estruturas usadas pelo OBS.
+- Fechar o OBS antes de substituir arquivos em uso.
+- Registrar um desinstalador no Windows para remover somente os arquivos do plugin.
+- Gerar o instalador com `build-release.ps1` a partir de um build `RelWithDebInfo` validado.
+- Atualizar README, versão do plugin, hash do instalador e notas da versão antes de publicar.
+- Testar a instalação em uma pasta limpa e confirmar o carregamento das fontes Mouse e Teclado no OBS.
+
 ## Estado atual
 
 - A estrutura foi separada em módulos.

@@ -4,7 +4,6 @@
 
 #include <util/platform.h>
 
-#include <float.h>
 #include <math.h>
 #include <string.h>
 
@@ -17,11 +16,7 @@
 #define KEY_IDLE_OPACITY_DEFAULT 35.0f
 #define KEY_ACTIVE_OPACITY_DEFAULT 100.0f
 #define KEY_PULSE_DURATION_DEFAULT 0.35f
-#define KEY_PULSE_DURATION_MIN 0.1f
-#define KEY_PULSE_DURATION_MAX 2.0f
 #define KEY_COLOR_FADE_DURATION_DEFAULT 0.03f
-#define KEY_COLOR_FADE_DURATION_MIN 0.01f
-#define KEY_COLOR_FADE_DURATION_MAX 0.50f
 #define KEY_QUICK_PRESS_DISPLAY_SECONDS 0.10f
 #define KEY_ROTATION_DEFAULT 0.0f
 #define KEY_ROTATION_MIN -180.0f
@@ -276,8 +271,6 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	keyboard->font_auto_size = true;
 	keyboard->idle_opacity_pct = (float)obs_data_get_double(settings, "keyboard_idle_opacity");
 	keyboard->active_opacity_pct = (float)obs_data_get_double(settings, "keyboard_active_opacity");
-	const double configured_fade_duration = obs_data_get_double(settings, "keyboard_fade_duration");
-	const double configured_pulse_duration = obs_data_get_double(settings, "keyboard_pulse_duration");
 	keyboard->rotation_deg = (float)obs_data_get_double(settings, "keyboard_rotation");
 	keyboard->tint_color = (uint32_t)obs_data_get_int(settings, "keyboard_tint_color");
 	keyboard->feedback = KEYBOARD_FEEDBACK_BOTH;
@@ -304,20 +297,8 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	if (!isfinite(keyboard->active_opacity_pct))
 		keyboard->active_opacity_pct = KEY_ACTIVE_OPACITY_DEFAULT;
 	keyboard->active_opacity_pct = fminf(fmaxf(keyboard->active_opacity_pct, 0.0f), 100.0f);
-	if (!obs_data_has_user_value(settings, "keyboard_fade_duration") || !isfinite(configured_fade_duration) ||
-	    configured_fade_duration > FLT_MAX)
-		keyboard->fade_duration = KEY_COLOR_FADE_DURATION_DEFAULT;
-	else
-		keyboard->fade_duration = (float)configured_fade_duration;
-	keyboard->fade_duration =
-		fminf(fmaxf(keyboard->fade_duration, KEY_COLOR_FADE_DURATION_MIN), KEY_COLOR_FADE_DURATION_MAX);
-	if (!obs_data_has_user_value(settings, "keyboard_pulse_duration") || !isfinite(configured_pulse_duration) ||
-	    configured_pulse_duration > FLT_MAX)
-		keyboard->pulse_duration = KEY_PULSE_DURATION_DEFAULT;
-	else
-		keyboard->pulse_duration = (float)configured_pulse_duration;
-	keyboard->pulse_duration =
-		fminf(fmaxf(keyboard->pulse_duration, KEY_PULSE_DURATION_MIN), KEY_PULSE_DURATION_MAX);
+	keyboard->fade_duration = KEY_COLOR_FADE_DURATION_DEFAULT;
+	keyboard->pulse_duration = KEY_PULSE_DURATION_DEFAULT;
 	if (!isfinite(keyboard->rotation_deg))
 		keyboard->rotation_deg = KEY_ROTATION_DEFAULT;
 	keyboard->rotation_deg = fminf(fmaxf(keyboard->rotation_deg, KEY_ROTATION_MIN), KEY_ROTATION_MAX);

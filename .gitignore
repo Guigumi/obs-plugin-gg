@@ -11,6 +11,8 @@
 !.gersemirc
 !.gitignore
 !buildspec.json
+!installer.iss
+!build-release.ps1
 !CMakeLists.txt
 !CMakePresets.json
 !LICENSE
