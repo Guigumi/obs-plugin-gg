@@ -5,14 +5,14 @@
 Preparar uma primeira versão estável, simples de configurar e com bom desempenho. Depois do lançamento, novas funções
 e opções de personalização serão adicionadas conforme a necessidade e o impacto que causarem no desempenho.
 
-## Escopo do lançamento inicial
+## Escopo da versão atual
 
-- Quatro layouts: `W A S D`, `Teclado 100%`, `Área de edição` e `Teclado numérico`.
+- Layouts `W A S D`, `Teclado 100%`, `Extras`, `OSU! mania`, `OSU!standard`, `CS2` e `Valorant`.
 - Opções de teclas separadas por layout.
 - Tamanho, espaçamento, rotação, opacidades, cores e fonte compartilhados.
 - Teclas normais, largas e verticais usando os assets atuais.
 - Captura com Raw Input em uma thread dedicada, usando `GetAsyncKeyState` como fallback.
-- Feedback atual por cor, círculo e borda, sem criar novas opções de animação nesta etapa.
+- Aparência por imagem ou procedural e animações básica ou completa.
 - Validação manual no OBS antes da publicação.
 
 ## Prioridades
@@ -61,9 +61,9 @@ Após medir o comportamento do plugin, vamos decidir quais recursos valem o cust
 - Evitar opções que deixem a configuração extensa sem resolver uma necessidade real.
 - Registrar as decisões de compatibilidade e desempenho antes de adicionar cada nova opção.
 
-## Lançamento 1.0.0
+## Lançamento 1.1.0
 
-- Distribuir Mouse e Teclado juntos no instalador `Input_overlay_gg_v1.0.0_Setup.exe`.
+- Distribuir Mouse e Teclado juntos no instalador `Input_overlay_gg_v1.1.0_Setup.exe`.
 - Instalar a DLL em `bin\64bit` e os assets/locales nas estruturas usadas pelo OBS.
 - Fechar o OBS antes de substituir arquivos em uso.
 - Registrar um desinstalador no Windows para remover somente os arquivos do plugin.
@@ -76,20 +76,23 @@ Após medir o comportamento do plugin, vamos decidir quais recursos valem o cust
 - A estrutura foi separada em módulos.
 - A captura Raw Input, o fallback e o compartilhamento de estado estão implementados.
 - O Enter normal e o Enter do teclado numérico compartilham o mesmo input por decisão de compatibilidade.
-- Os quatro layouts e as propriedades dinâmicas estão implementados.
+- Os layouts e as propriedades dinâmicas estão implementados.
 - Teclas normais, horizontais, barra de espaço e teclas verticais estão implementadas.
 - Texturas de rótulo são reutilizadas quando texto, fonte, tamanho e dimensões não mudam.
+- A tecla procedural e os estilos de animação estão implementados.
 - O build `RelWithDebInfo` e os testes automatizados estão passando.
-- A validação visual e funcional no OBS ainda está pendente e bloqueia o lançamento.
+- A validação visual e funcional no OBS foi concluída sem erros de carregamento do plugin.
 
 ## Pós-lançamento
 
 ### Aparência e animação
 
-- Avaliar a substituição dos assets por teclas desenhadas de forma procedural, com cantos arredondados.
-- Adicionar uma pequena animação de escala ao pressionar a tecla, sem alterar o tamanho do rótulo.
-- Reavaliar os efeitos de cor, círculo, borda e suas combinações.
-- Adicionar sombra ou contorno configurável aos rótulos.
+- Validar o desenho procedural de teclas com diferentes tamanhos, proporções e cantos arredondados.
+- Medir o impacto do desenho procedural na CPU, GPU, VRAM e tempo de inicialização.
+- Manter a animação `Básica` como padrão, com mudança de cor e uma leve redução de escala.
+- Manter `Ondulação`, `Pulso` e `Completa` como opções extras para quem aceitar maior custo de renderização.
+- Reavaliar os passes de círculo e borda depois das medições.
+- Não adicionar sombra ou contorno aos rótulos nesta etapa.
 
 ### Personalização
 

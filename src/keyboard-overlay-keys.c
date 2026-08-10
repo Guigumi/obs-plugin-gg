@@ -5,6 +5,7 @@
 #include <util/platform.h>
 
 #include <math.h>
+#include <ctype.h>
 #include <string.h>
 
 #define KEY_SIZE_DEFAULT 64.0f
@@ -97,6 +98,56 @@ static const char *const key_character_labels[KEYBOARD_KEY_COUNT] = {
 	"KeyboardCharacterNumpadEnter",
 };
 
+static const char *const osu_mania_character_settings[4] = {
+	"keyboard_character_osu_mania_1", "keyboard_character_osu_mania_2", "keyboard_character_osu_mania_3",
+	"keyboard_character_osu_mania_4",
+};
+
+static const char *const osu_mania_character_labels[4] = {
+	"KeyboardCharacterOsuMania1", "KeyboardCharacterOsuMania2", "KeyboardCharacterOsuMania3",
+	"KeyboardCharacterOsuMania4",
+};
+
+static const char *const osu_standard_character_settings[2] = {
+	"keyboard_character_osu_standard_1", "keyboard_character_osu_standard_2",
+};
+
+static const char *const osu_standard_character_labels[2] = {
+	"KeyboardCharacterOsuStandard1", "KeyboardCharacterOsuStandard2",
+};
+
+static const char *const game_bonus_settings[] = {
+	"keyboard_character_cs2_bonus", "keyboard_character_valorant_bonus",
+};
+
+static enum keyboard_overlay_key keyboard_keys_parse_capture_key(const char *text,
+									 enum keyboard_overlay_key fallback)
+{
+	if (!text || strlen(text) != 1)
+		return fallback;
+
+	const char key = (char)toupper((unsigned char)text[0]);
+	if (key >= 'A' && key <= 'Z') {
+		static const enum keyboard_overlay_key letter_keys[] = {
+			KEYBOARD_KEY_A, KEYBOARD_KEY_B, KEYBOARD_KEY_C, KEYBOARD_KEY_D, KEYBOARD_KEY_E,
+			KEYBOARD_KEY_F, KEYBOARD_KEY_G, KEYBOARD_KEY_H, KEYBOARD_KEY_I, KEYBOARD_KEY_J,
+			KEYBOARD_KEY_K, KEYBOARD_KEY_L, KEYBOARD_KEY_M, KEYBOARD_KEY_N, KEYBOARD_KEY_O,
+			KEYBOARD_KEY_P, KEYBOARD_KEY_Q, KEYBOARD_KEY_R, KEYBOARD_KEY_S, KEYBOARD_KEY_T,
+			KEYBOARD_KEY_U, KEYBOARD_KEY_V, KEYBOARD_KEY_W, KEYBOARD_KEY_X, KEYBOARD_KEY_Y,
+			KEYBOARD_KEY_Z,
+		};
+		return letter_keys[key - 'A'];
+	}
+	if (key >= '0' && key <= '9') {
+		static const enum keyboard_overlay_key digit_keys[] = {
+			KEYBOARD_KEY_0, KEYBOARD_KEY_1, KEYBOARD_KEY_2, KEYBOARD_KEY_3, KEYBOARD_KEY_4,
+			KEYBOARD_KEY_5, KEYBOARD_KEY_6, KEYBOARD_KEY_7, KEYBOARD_KEY_8, KEYBOARD_KEY_9,
+		};
+		return digit_keys[key - '0'];
+	}
+	return fallback;
+}
+
 static void keyboard_keys_sync_capture(struct keyboard_overlay_gg_data *keyboard)
 {
 	struct keyboard_capture_snapshot snapshot;
@@ -117,6 +168,31 @@ static bool keyboard_key_is_visible_by_preset(enum keyboard_capture_layout layou
 	if (layout == KEYBOARD_LAYOUT_EDITING)
 		return (index >= KEYBOARD_KEY_PRINT_SCREEN && index <= KEYBOARD_KEY_PAUSE) ||
 		       (index >= KEYBOARD_KEY_INSERT && index <= KEYBOARD_KEY_RIGHT);
+	if (layout == KEYBOARD_LAYOUT_NUMPAD)
+		return index >= KEYBOARD_KEY_NUM_LOCK;
+	if (layout == KEYBOARD_LAYOUT_EXTRAS)
+		return (index >= KEYBOARD_KEY_PRINT_SCREEN && index <= KEYBOARD_KEY_PAUSE) ||
+		       (index >= KEYBOARD_KEY_INSERT && index <= KEYBOARD_KEY_RIGHT) || index >= KEYBOARD_KEY_NUM_LOCK;
+	if (layout == KEYBOARD_LAYOUT_OSU_MANIA)
+		return index == KEYBOARD_KEY_D || index == KEYBOARD_KEY_F || index == KEYBOARD_KEY_J || index == KEYBOARD_KEY_K;
+	if (layout == KEYBOARD_LAYOUT_OSU_STANDARD)
+		return index == KEYBOARD_KEY_Z || index == KEYBOARD_KEY_X;
+	if (layout == KEYBOARD_LAYOUT_CS2)
+		return (index >= KEYBOARD_KEY_1 && index <= KEYBOARD_KEY_5) || index == KEYBOARD_KEY_W || index == KEYBOARD_KEY_A ||
+		       index == KEYBOARD_KEY_S || index == KEYBOARD_KEY_D ||
+		       index == KEYBOARD_KEY_TAB || index == KEYBOARD_KEY_CAPS || index == KEYBOARD_KEY_SHIFT ||
+		       index == KEYBOARD_KEY_CTRL || index == KEYBOARD_KEY_SPACE ||
+		       index == KEYBOARD_KEY_E || index == KEYBOARD_KEY_Q || index == KEYBOARD_KEY_R || index == KEYBOARD_KEY_G ||
+		       index == KEYBOARD_KEY_Z || index == KEYBOARD_KEY_X || index == KEYBOARD_KEY_C || index == KEYBOARD_KEY_F ||
+		       index == KEYBOARD_KEY_B || index == KEYBOARD_KEY_V;
+	if (layout == KEYBOARD_LAYOUT_VALORANT)
+		return (index >= KEYBOARD_KEY_1 && index <= KEYBOARD_KEY_4) || index == KEYBOARD_KEY_W || index == KEYBOARD_KEY_A ||
+		       index == KEYBOARD_KEY_S || index == KEYBOARD_KEY_D ||
+		       index == KEYBOARD_KEY_TAB || index == KEYBOARD_KEY_CAPS || index == KEYBOARD_KEY_SHIFT ||
+		       index == KEYBOARD_KEY_CTRL || index == KEYBOARD_KEY_SPACE ||
+		       index == KEYBOARD_KEY_Q || index == KEYBOARD_KEY_E || index == KEYBOARD_KEY_C || index == KEYBOARD_KEY_X ||
+		       index == KEYBOARD_KEY_F || index == KEYBOARD_KEY_R || index == KEYBOARD_KEY_V || index == KEYBOARD_KEY_Z ||
+		       index == KEYBOARD_KEY_B;
 	return index >= KEYBOARD_KEY_NUM_LOCK;
 }
 
@@ -157,9 +233,19 @@ void keyboard_keys_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "keyboard_idle_opacity", KEY_IDLE_OPACITY_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_active_opacity", KEY_ACTIVE_OPACITY_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_rotation", KEY_ROTATION_DEFAULT);
+	obs_data_set_default_int(settings, "keyboard_animation_style", KEYBOARD_ANIMATION_BASIC);
+	obs_data_set_default_int(settings, "keyboard_render_style", KEYBOARD_RENDER_IMAGE);
 	obs_data_set_default_int(settings, "keyboard_tint_color", KEY_TINT_COLOR_DEFAULT);
 	obs_data_set_default_int(settings, "keyboard_font_color", KEY_FONT_COLOR_DEFAULT);
 	obs_data_set_default_int(settings, "keyboard_feedback", KEY_FEEDBACK_DEFAULT);
+	obs_data_set_default_string(settings, "keyboard_character_osu_mania_1", "D");
+	obs_data_set_default_string(settings, "keyboard_character_osu_mania_2", "F");
+	obs_data_set_default_string(settings, "keyboard_character_osu_mania_3", "J");
+	obs_data_set_default_string(settings, "keyboard_character_osu_mania_4", "K");
+	obs_data_set_default_string(settings, "keyboard_character_osu_standard_1", "Z");
+	obs_data_set_default_string(settings, "keyboard_character_osu_standard_2", "X");
+	obs_data_set_default_string(settings, "keyboard_character_cs2_bonus", "B");
+	obs_data_set_default_string(settings, "keyboard_character_valorant_bonus", "B");
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		obs_data_set_default_string(settings, key_character_settings[i], default_characters[i]);
 	}
@@ -173,16 +259,26 @@ static bool keyboard_layout_modified(obs_properties_t *props, obs_property_t *pr
 		(enum keyboard_capture_layout)obs_data_get_int(settings, "keyboard_layout_preset");
 	obs_property_t *wasd_configuration = obs_properties_get(props, "keyboard_key_configuration_wasd");
 	obs_property_t *full_configuration = obs_properties_get(props, "keyboard_key_configuration_100");
-	obs_property_t *editing_configuration = obs_properties_get(props, "keyboard_key_configuration_editing");
-	obs_property_t *numpad_configuration = obs_properties_get(props, "keyboard_key_configuration_numpad");
+	obs_property_t *extras_configuration = obs_properties_get(props, "keyboard_key_configuration_extras");
+	obs_property_t *osu_mania_configuration = obs_properties_get(props, "keyboard_key_configuration_osu_mania");
+	obs_property_t *osu_standard_configuration = obs_properties_get(props, "keyboard_key_configuration_osu_standard");
+	obs_property_t *cs2_configuration = obs_properties_get(props, "keyboard_key_configuration_cs2");
+	obs_property_t *valorant_configuration = obs_properties_get(props, "keyboard_key_configuration_valorant");
 	if (wasd_configuration)
 		obs_property_set_visible(wasd_configuration, wasd);
 	if (full_configuration)
 		obs_property_set_visible(full_configuration, layout == KEYBOARD_LAYOUT_100);
-	if (editing_configuration)
-		obs_property_set_visible(editing_configuration, layout == KEYBOARD_LAYOUT_EDITING);
-	if (numpad_configuration)
-		obs_property_set_visible(numpad_configuration, layout == KEYBOARD_LAYOUT_NUMPAD);
+	if (extras_configuration)
+		obs_property_set_visible(extras_configuration, layout == KEYBOARD_LAYOUT_EXTRAS || layout == KEYBOARD_LAYOUT_EDITING ||
+							layout == KEYBOARD_LAYOUT_NUMPAD);
+	if (osu_mania_configuration)
+		obs_property_set_visible(osu_mania_configuration, layout == KEYBOARD_LAYOUT_OSU_MANIA);
+	if (osu_standard_configuration)
+		obs_property_set_visible(osu_standard_configuration, layout == KEYBOARD_LAYOUT_OSU_STANDARD);
+	if (cs2_configuration)
+		obs_property_set_visible(cs2_configuration, layout == KEYBOARD_LAYOUT_CS2);
+	if (valorant_configuration)
+		obs_property_set_visible(valorant_configuration, layout == KEYBOARD_LAYOUT_VALORANT);
 	return true;
 }
 
@@ -195,8 +291,11 @@ void keyboard_keys_add_properties(obs_properties_t *props, enum keyboard_capture
 								 OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutWASD"), KEYBOARD_LAYOUT_WASD);
 	obs_property_list_add_int(preset, obs_module_text("KeyboardLayout100"), KEYBOARD_LAYOUT_100);
-	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutEditing"), KEYBOARD_LAYOUT_EDITING);
-	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutNumpad"), KEYBOARD_LAYOUT_NUMPAD);
+	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutExtras"), KEYBOARD_LAYOUT_EXTRAS);
+	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutOsuMania"), KEYBOARD_LAYOUT_OSU_MANIA);
+	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutOsuStandard"), KEYBOARD_LAYOUT_OSU_STANDARD);
+	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutCS2"), KEYBOARD_LAYOUT_CS2);
+	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutValorant"), KEYBOARD_LAYOUT_VALORANT);
 	obs_property_set_modified_callback(preset, keyboard_layout_modified);
 	obs_properties_add_float_slider(keyboard, "keyboard_key_size", obs_module_text("KeyboardKeySize"), KEY_SIZE_MIN,
 					KEY_SIZE_MAX, 1.0f);
@@ -208,6 +307,16 @@ void keyboard_keys_add_properties(obs_properties_t *props, enum keyboard_capture
 					100.0f, 1.0f);
 	obs_properties_add_float_slider(keyboard, "keyboard_active_opacity", obs_module_text("KeyboardActiveOpacity"),
 					0.0f, 100.0f, 1.0f);
+	obs_property_t *animation = obs_properties_add_list(keyboard, "keyboard_animation_style",
+								 obs_module_text("KeyboardAnimationStyle"), OBS_COMBO_TYPE_LIST,
+								 OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(animation, obs_module_text("KeyboardAnimationBasic"), KEYBOARD_ANIMATION_BASIC);
+	obs_property_list_add_int(animation, obs_module_text("KeyboardAnimationFull"), KEYBOARD_ANIMATION_FULL);
+	obs_property_t *render_style = obs_properties_add_list(keyboard, "keyboard_render_style",
+								      obs_module_text("KeyboardRenderStyle"), OBS_COMBO_TYPE_LIST,
+								      OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(render_style, obs_module_text("KeyboardRenderImage"), KEYBOARD_RENDER_IMAGE);
+	obs_property_list_add_int(render_style, obs_module_text("KeyboardRenderProcedural"), KEYBOARD_RENDER_PROCEDURAL);
 	obs_properties_add_color(keyboard, "keyboard_tint_color", obs_module_text("KeyboardTintColor"));
 	obs_properties_add_font(keyboard, "keyboard_font", obs_module_text("KeyboardFont"));
 	obs_properties_add_color(keyboard, "keyboard_font_color", obs_module_text("KeyboardFontColor"));
@@ -231,30 +340,55 @@ void keyboard_keys_add_properties(obs_properties_t *props, enum keyboard_capture
 		obs_properties_add_text(full_configuration, key_character_settings[i], obs_module_text(key_character_labels[i]),
 					OBS_TEXT_DEFAULT);
 	}
-	obs_properties_t *editing_configuration = obs_properties_create();
-	obs_property_t *editing_group = obs_properties_add_group(keyboard, "keyboard_key_configuration_editing",
-								       obs_module_text("KeyboardKeyConfigurationEditing"),
-								       OBS_GROUP_NORMAL, editing_configuration);
+	obs_properties_t *extras_configuration = obs_properties_create();
+	obs_property_t *extras_group = obs_properties_add_group(keyboard, "keyboard_key_configuration_extras",
+									 obs_module_text("KeyboardKeyConfigurationExtras"),
+									 OBS_GROUP_NORMAL, extras_configuration);
 	for (size_t i = KEYBOARD_KEY_PRINT_SCREEN; i <= KEYBOARD_KEY_PAUSE; i++) {
-		obs_properties_add_text(editing_configuration, key_character_settings[i], obs_module_text(key_character_labels[i]),
+		obs_properties_add_text(extras_configuration, key_character_settings[i], obs_module_text(key_character_labels[i]),
 					OBS_TEXT_DEFAULT);
 	}
 	for (size_t i = KEYBOARD_KEY_INSERT; i <= KEYBOARD_KEY_RIGHT; i++) {
-		obs_properties_add_text(editing_configuration, key_character_settings[i], obs_module_text(key_character_labels[i]),
+		obs_properties_add_text(extras_configuration, key_character_settings[i], obs_module_text(key_character_labels[i]),
 					OBS_TEXT_DEFAULT);
 	}
-	obs_properties_t *numpad_configuration = obs_properties_create();
-	obs_property_t *numpad_group = obs_properties_add_group(keyboard, "keyboard_key_configuration_numpad",
-								      obs_module_text("KeyboardKeyConfigurationNumpad"),
-								      OBS_GROUP_NORMAL, numpad_configuration);
 	for (size_t i = KEYBOARD_KEY_NUM_LOCK; i < KEYBOARD_KEY_COUNT; i++) {
-		obs_properties_add_text(numpad_configuration, key_character_settings[i], obs_module_text(key_character_labels[i]),
+		obs_properties_add_text(extras_configuration, key_character_settings[i], obs_module_text(key_character_labels[i]),
 					OBS_TEXT_DEFAULT);
 	}
+	obs_properties_t *osu_mania_configuration = obs_properties_create();
+	obs_property_t *osu_mania_group = obs_properties_add_group(keyboard, "keyboard_key_configuration_osu_mania",
+									  obs_module_text("KeyboardKeyConfigurationOsuMania"),
+									  OBS_GROUP_NORMAL, osu_mania_configuration);
+	for (size_t i = 0; i < 4; i++)
+		obs_properties_add_text(osu_mania_configuration, osu_mania_character_settings[i],
+					obs_module_text(osu_mania_character_labels[i]), OBS_TEXT_DEFAULT);
+	obs_properties_t *osu_standard_configuration = obs_properties_create();
+	obs_property_t *osu_standard_group = obs_properties_add_group(keyboard, "keyboard_key_configuration_osu_standard",
+									     obs_module_text("KeyboardKeyConfigurationOsuStandard"),
+									     OBS_GROUP_NORMAL, osu_standard_configuration);
+	for (size_t i = 0; i < 2; i++)
+		obs_properties_add_text(osu_standard_configuration, osu_standard_character_settings[i],
+					obs_module_text(osu_standard_character_labels[i]), OBS_TEXT_DEFAULT);
+	obs_properties_t *cs2_configuration = obs_properties_create();
+	obs_property_t *cs2_group = obs_properties_add_group(keyboard, "keyboard_key_configuration_cs2",
+								     obs_module_text("KeyboardKeyConfigurationCS2"),
+								     OBS_GROUP_NORMAL, cs2_configuration);
+	obs_properties_add_text(cs2_configuration, game_bonus_settings[0], obs_module_text("KeyboardBonusKey"), OBS_TEXT_DEFAULT);
+	obs_properties_t *valorant_configuration = obs_properties_create();
+	obs_property_t *valorant_group = obs_properties_add_group(keyboard, "keyboard_key_configuration_valorant",
+									     obs_module_text("KeyboardKeyConfigurationValorant"),
+									     OBS_GROUP_NORMAL, valorant_configuration);
+	obs_properties_add_text(valorant_configuration, game_bonus_settings[1], obs_module_text("KeyboardBonusKey"),
+					OBS_TEXT_DEFAULT);
 	obs_property_set_visible(wasd_group, initial_layout == KEYBOARD_LAYOUT_WASD);
 	obs_property_set_visible(full_group, initial_layout == KEYBOARD_LAYOUT_100);
-	obs_property_set_visible(editing_group, initial_layout == KEYBOARD_LAYOUT_EDITING);
-	obs_property_set_visible(numpad_group, initial_layout == KEYBOARD_LAYOUT_NUMPAD);
+	obs_property_set_visible(extras_group, initial_layout == KEYBOARD_LAYOUT_EXTRAS || initial_layout == KEYBOARD_LAYOUT_EDITING ||
+						 initial_layout == KEYBOARD_LAYOUT_NUMPAD);
+	obs_property_set_visible(osu_mania_group, initial_layout == KEYBOARD_LAYOUT_OSU_MANIA);
+	obs_property_set_visible(osu_standard_group, initial_layout == KEYBOARD_LAYOUT_OSU_STANDARD);
+	obs_property_set_visible(cs2_group, initial_layout == KEYBOARD_LAYOUT_CS2);
+	obs_property_set_visible(valorant_group, initial_layout == KEYBOARD_LAYOUT_VALORANT);
 }
 
 void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t *settings)
@@ -263,6 +397,10 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	const enum keyboard_capture_layout configured_layout =
 		(enum keyboard_capture_layout)obs_data_get_int(settings, "keyboard_layout_preset");
 	const bool layout_changed = keyboard->layout_preset != configured_layout;
+	bool capture_mapping_changed = false;
+	enum keyboard_overlay_key previous_capture_keys[KEYBOARD_KEY_COUNT];
+	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++)
+		previous_capture_keys[i] = keyboard->keys[i].capture_key;
 	keyboard->enabled = obs_data_get_bool(settings, "keyboard_enabled");
 	keyboard->arrow_aliases = true;
 	keyboard->layout_preset = configured_layout;
@@ -271,18 +409,63 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	keyboard->font_auto_size = true;
 	keyboard->idle_opacity_pct = (float)obs_data_get_double(settings, "keyboard_idle_opacity");
 	keyboard->active_opacity_pct = (float)obs_data_get_double(settings, "keyboard_active_opacity");
+	keyboard->animation_style = (int)obs_data_get_int(settings, "keyboard_animation_style");
+	keyboard->render_style = (int)obs_data_get_int(settings, "keyboard_render_style");
 	keyboard->rotation_deg = (float)obs_data_get_double(settings, "keyboard_rotation");
 	keyboard->tint_color = (uint32_t)obs_data_get_int(settings, "keyboard_tint_color");
 	keyboard->feedback = KEYBOARD_FEEDBACK_BOTH;
+	if (keyboard->animation_style < KEYBOARD_ANIMATION_BASIC || keyboard->animation_style > KEYBOARD_ANIMATION_FULL)
+		keyboard->animation_style = KEYBOARD_ANIMATION_BASIC;
+	if (keyboard->render_style < KEYBOARD_RENDER_IMAGE || keyboard->render_style > KEYBOARD_RENDER_PROCEDURAL)
+		keyboard->render_style = KEYBOARD_RENDER_IMAGE;
 	if (keyboard->layout_preset < KEYBOARD_LAYOUT_WASD || keyboard->layout_preset >= KEYBOARD_LAYOUT_COUNT)
 		keyboard->layout_preset = KEYBOARD_LAYOUT_WASD;
 	keyboard->font_color = obs_data_has_user_value(settings, "keyboard_font_color")
 				       ? (uint32_t)obs_data_get_int(settings, "keyboard_font_color")
 				       : KEY_FONT_COLOR_DEFAULT;
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
+		keyboard->keys[i].capture_key = (enum keyboard_overlay_key)i;
+		keyboard->keys[i].character_setting = key_character_settings[i];
 		keyboard->keys[i].visible = keyboard_key_is_visible_by_preset(keyboard->layout_preset, i);
 		keyboard->keys[i].normalized_x = 0.0f;
 		keyboard->keys[i].normalized_y = 0.0f;
+	}
+
+	if (keyboard->layout_preset == KEYBOARD_LAYOUT_OSU_MANIA) {
+		const enum keyboard_overlay_key slots[] = {
+			KEYBOARD_KEY_D, KEYBOARD_KEY_F, KEYBOARD_KEY_J, KEYBOARD_KEY_K,
+		};
+		for (size_t i = 0; i < 4; i++) {
+			const enum keyboard_overlay_key slot = slots[i];
+			keyboard->keys[slot].character_setting = osu_mania_character_settings[i];
+			const enum keyboard_overlay_key capture_key = keyboard_keys_parse_capture_key(
+				keyboard_keys_get_character(keyboard, settings, slot), slot);
+			if (previous_capture_keys[slot] != capture_key)
+				capture_mapping_changed = true;
+			keyboard->keys[slot].capture_key = capture_key;
+		}
+	} else if (keyboard->layout_preset == KEYBOARD_LAYOUT_OSU_STANDARD) {
+		const enum keyboard_overlay_key slots[] = {
+			KEYBOARD_KEY_Z, KEYBOARD_KEY_X,
+		};
+		for (size_t i = 0; i < 2; i++) {
+			const enum keyboard_overlay_key slot = slots[i];
+			keyboard->keys[slot].character_setting = osu_standard_character_settings[i];
+			const enum keyboard_overlay_key capture_key = keyboard_keys_parse_capture_key(
+				keyboard_keys_get_character(keyboard, settings, slot), slot);
+			if (previous_capture_keys[slot] != capture_key)
+				capture_mapping_changed = true;
+			keyboard->keys[slot].capture_key = capture_key;
+		}
+	} else if (keyboard->layout_preset == KEYBOARD_LAYOUT_CS2 || keyboard->layout_preset == KEYBOARD_LAYOUT_VALORANT) {
+		const size_t bonus_index = keyboard->layout_preset == KEYBOARD_LAYOUT_CS2 ? 0 : 1;
+		const enum keyboard_overlay_key bonus_slot = KEYBOARD_KEY_B;
+		keyboard->keys[bonus_slot].character_setting = game_bonus_settings[bonus_index];
+		const enum keyboard_overlay_key capture_key = keyboard_keys_parse_capture_key(
+			keyboard_keys_get_character(keyboard, settings, bonus_slot), bonus_slot);
+		if (previous_capture_keys[bonus_slot] != capture_key)
+			capture_mapping_changed = true;
+		keyboard->keys[bonus_slot].capture_key = capture_key;
 	}
 
 	if (!isfinite(keyboard->key_size))
@@ -302,7 +485,7 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	if (!isfinite(keyboard->rotation_deg))
 		keyboard->rotation_deg = KEY_ROTATION_DEFAULT;
 	keyboard->rotation_deg = fminf(fmaxf(keyboard->rotation_deg, KEY_ROTATION_MIN), KEY_ROTATION_MAX);
-	if (arrow_aliases_changed || layout_changed)
+	if (arrow_aliases_changed || layout_changed || capture_mapping_changed)
 		keyboard->capture_snapshot_initialized = false;
 	if (!keyboard->enabled) {
 		for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {

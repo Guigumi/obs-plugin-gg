@@ -98,13 +98,13 @@ static void test_layout_full_keyboard_dimensions(void)
 	ASSERT_FLOAT_NEAR(424.0f, height, 0.001f);
 }
 
-static void test_layout_editing_positions_and_dimensions(void)
+static void test_layout_extras_positions_and_dimensions(void)
 {
 	struct keyboard_overlay_gg_data keyboard;
 	memset(&keyboard, 0, sizeof(keyboard));
 	keyboard.key_size = 64.0f;
 	keyboard.spacing = 8.0f;
-	keyboard.layout_preset = KEYBOARD_LAYOUT_EDITING;
+	keyboard.layout_preset = KEYBOARD_LAYOUT_EXTRAS;
 	keyboard_layout_update(&keyboard);
 	ASSERT_FLOAT_NEAR(32.0f, keyboard.keys[KEYBOARD_KEY_INSERT].x, 0.001f);
 	ASSERT_FLOAT_NEAR(104.0f, keyboard.keys[KEYBOARD_KEY_UP].x, 0.001f);
@@ -113,7 +113,7 @@ static void test_layout_editing_positions_and_dimensions(void)
 	float width = 0.0f;
 	float height = 0.0f;
 	keyboard_layout_get_base_dimensions(&keyboard, &width, &height);
-	ASSERT_FLOAT_NEAR(208.0f, width, 0.001f);
+	ASSERT_FLOAT_NEAR(496.0f, width, 0.001f);
 	ASSERT_FLOAT_NEAR(352.0f, height, 0.001f);
 }
 
@@ -136,6 +136,56 @@ static void test_layout_numpad_positions_and_dimensions(void)
 	ASSERT_FLOAT_NEAR(352.0f, height, 0.001f);
 }
 
+static void test_layout_osu_presets(void)
+{
+	struct keyboard_overlay_gg_data keyboard;
+	memset(&keyboard, 0, sizeof(keyboard));
+	keyboard.key_size = 64.0f;
+	keyboard.spacing = 8.0f;
+	keyboard.layout_preset = KEYBOARD_LAYOUT_OSU_MANIA;
+	keyboard_layout_update(&keyboard);
+	ASSERT_FLOAT_NEAR(32.0f, keyboard.keys[KEYBOARD_KEY_D].x, 0.001f);
+	ASSERT_FLOAT_NEAR(248.0f, keyboard.keys[KEYBOARD_KEY_K].x, 0.001f);
+	float width = 0.0f;
+	float height = 0.0f;
+	keyboard_layout_get_base_dimensions(&keyboard, &width, &height);
+	ASSERT_FLOAT_NEAR(280.0f, width, 0.001f);
+	ASSERT_FLOAT_NEAR(64.0f, height, 0.001f);
+
+	keyboard.layout_preset = KEYBOARD_LAYOUT_OSU_STANDARD;
+	keyboard_layout_update(&keyboard);
+	ASSERT_FLOAT_NEAR(32.0f, keyboard.keys[KEYBOARD_KEY_Z].x, 0.001f);
+	ASSERT_FLOAT_NEAR(104.0f, keyboard.keys[KEYBOARD_KEY_X].x, 0.001f);
+	keyboard_layout_get_base_dimensions(&keyboard, &width, &height);
+	ASSERT_FLOAT_NEAR(136.0f, width, 0.001f);
+	ASSERT_FLOAT_NEAR(64.0f, height, 0.001f);
+}
+
+static void test_layout_game_presets(void)
+{
+	struct keyboard_overlay_gg_data keyboard;
+	memset(&keyboard, 0, sizeof(keyboard));
+	keyboard.key_size = 64.0f;
+	keyboard.spacing = 8.0f;
+	keyboard.layout_preset = KEYBOARD_LAYOUT_CS2;
+	keyboard_layout_update(&keyboard);
+	ASSERT_FLOAT_NEAR(224.0f, keyboard.keys[KEYBOARD_KEY_W].x, 0.001f);
+	ASSERT_FLOAT_NEAR(64.0f, keyboard.keys[KEYBOARD_KEY_TAB].x, 0.001f);
+	ASSERT_FLOAT_NEAR(64.0f, keyboard.keys[KEYBOARD_KEY_CAPS].x, 0.001f);
+	ASSERT_FLOAT_NEAR(224.0f, keyboard.keys[KEYBOARD_KEY_B].y, 0.001f);
+	float width = 0.0f;
+	float height = 0.0f;
+	keyboard_layout_get_base_dimensions(&keyboard, &width, &height);
+	ASSERT_FLOAT_NEAR(448.0f, width, 0.001f);
+	ASSERT_FLOAT_NEAR(320.0f, height, 0.001f);
+
+	keyboard.layout_preset = KEYBOARD_LAYOUT_VALORANT;
+	keyboard_layout_update(&keyboard);
+	ASSERT_FLOAT_NEAR(352.0f, keyboard.keys[KEYBOARD_KEY_R].x, 0.001f);
+	ASSERT_FLOAT_NEAR(352.0f, keyboard.keys[KEYBOARD_KEY_V].x, 0.001f);
+	ASSERT_FLOAT_NEAR(160.0f, keyboard.keys[KEYBOARD_KEY_F].y, 0.001f);
+}
+
 int main(void)
 {
 	printf("--- Testes de Layout do Teclado ---\n");
@@ -144,7 +194,9 @@ int main(void)
 	RUN_TEST(test_layout_rotation_dimensions);
 	RUN_TEST(test_layout_full_keyboard_positions);
 	RUN_TEST(test_layout_full_keyboard_dimensions);
-	RUN_TEST(test_layout_editing_positions_and_dimensions);
+	RUN_TEST(test_layout_extras_positions_and_dimensions);
 	RUN_TEST(test_layout_numpad_positions_and_dimensions);
+	RUN_TEST(test_layout_osu_presets);
+	RUN_TEST(test_layout_game_presets);
 	TEST_MAIN_END();
 }

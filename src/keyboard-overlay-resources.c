@@ -207,6 +207,11 @@ void keyboard_resources_init(struct keyboard_overlay_gg_data *keyboard)
 			blog(LOG_WARNING, "Failed to load image: %s", image_path);
 		bfree(image_path);
 	}
+	const uint8_t white_pixel[4] = {255, 255, 255, 255};
+	const uint8_t *white_levels[] = {white_pixel};
+	obs_enter_graphics();
+	keyboard->procedural_texture = gs_texture_create(1, 1, GS_BGRA, 1, white_levels, 0);
+	obs_leave_graphics();
 
 	char *path = obs_module_file("keyboard.effect");
 	char *effect_errors = NULL;
@@ -219,12 +224,14 @@ void keyboard_resources_init(struct keyboard_overlay_gg_data *keyboard)
 		keyboard->effect_technique = gs_effect_get_technique(keyboard->effect, "DrawKeyboard");
 		keyboard->effect_circle_technique = gs_effect_get_technique(keyboard->effect, "DrawKeyboardCircle");
 		keyboard->effect_border_technique = gs_effect_get_technique(keyboard->effect, "DrawKeyboardBorder");
+		keyboard->effect_procedural_technique = gs_effect_get_technique(keyboard->effect, "DrawKeyboardProcedural");
 		keyboard->effect_image = gs_effect_get_param_by_name(keyboard->effect, "image");
 		keyboard->effect_opacity = gs_effect_get_param_by_name(keyboard->effect, "opacity");
 		keyboard->effect_tint = gs_effect_get_param_by_name(keyboard->effect, "tint");
+		keyboard->effect_corner_radius = gs_effect_get_param_by_name(keyboard->effect, "corner_radius");
 		if (!keyboard->effect_technique || !keyboard->effect_circle_technique ||
 		    !keyboard->effect_border_technique || !keyboard->effect_image || !keyboard->effect_opacity ||
-		    !keyboard->effect_tint)
+		    !keyboard->effect_tint || !keyboard->effect_procedural_technique || !keyboard->effect_corner_radius)
 			blog(LOG_ERROR, "keyboard.effect is missing required entries");
 	} else {
 		blog(LOG_ERROR, "Failed to load keyboard.effect: %s", effect_errors ? effect_errors : "unknown error");
@@ -239,6 +246,7 @@ void keyboard_resources_free(struct keyboard_overlay_gg_data *keyboard)
 	gs_image_file_free(&keyboard->wide_image);
 	gs_image_file_free(&keyboard->space_image);
 	gs_image_file_free(&keyboard->vertical_image);
+	gs_texture_destroy(keyboard->procedural_texture);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++)
 		gs_texture_destroy(keyboard->keys[i].label_texture);
 	gs_effect_destroy(keyboard->effect);
@@ -265,7 +273,7 @@ static void keyboard_resources_prepare_draw(gs_eparam_t *image_param, gs_eparam_
 static gs_texture_t *keyboard_resources_get_key_texture(struct keyboard_overlay_gg_data *keyboard,
 								const struct keyboard_overlay_key_data *key)
 {
-	if (keyboard->layout_preset == KEYBOARD_LAYOUT_WASD || keyboard->layout_preset == KEYBOARD_LAYOUT_EDITING)
+	if (keyboard->layout_preset == KEYBOARD_LAYOUT_WASD)
 		return keyboard->main_image.texture;
 	if (key->width > keyboard->key_size * 4.0f)
 		return keyboard->space_image.texture ? keyboard->space_image.texture : keyboard->main_image.texture;
@@ -298,13 +306,15 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 	float key_opacities[KEYBOARD_KEY_COUNT];
 	float circle_opacities[KEYBOARD_KEY_COUNT];
 	float border_opacities[KEYBOARD_KEY_COUNT];
+	float key_scales[KEYBOARD_KEY_COUNT];
 	bool has_circle = false;
 	bool has_border = false;
+	const bool use_ripple = keyboard->animation_style == KEYBOARD_ANIMATION_FULL;
+	const bool use_pulse = keyboard->animation_style == KEYBOARD_ANIMATION_FULL;
+	const bool use_scale = keyboard->animation_style == KEYBOARD_ANIMATION_FULL;
 
 	for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 		const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-		const bool use_color = keyboard->feedback != KEYBOARD_FEEDBACK_PULSE;
-		const bool use_pulse = keyboard->feedback != KEYBOARD_FEEDBACK_COLOR;
 		const float age = key_data->press_time_ns ? (float)(now_ns - key_data->press_time_ns) * 1e-9f
 							  : keyboard->pulse_duration;
 		float pulse_level = 0.0f;
@@ -312,11 +322,13 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 			const float t = age / keyboard->pulse_duration;
 			pulse_level = sinf((float)M_PI * t);
 		}
-		const float color_level = use_color ? key_data->color_level : 0.0f;
-		const float key_color_level = use_color ? color_level : 0.0f;
+		const float key_color_level = key_data->color_level;
 		key_opacities[key] = idle_opacity + (active_opacity - idle_opacity) * key_color_level;
-		circle_opacities[key] = active_opacity * key_color_level * 0.35f;
-		border_opacities[key] = active_opacity * pulse_level * 0.22f;
+		circle_opacities[key] = use_ripple ? active_opacity * key_color_level * 0.35f : 0.0f;
+		border_opacities[key] = use_pulse ? active_opacity * pulse_level * 0.22f : 0.0f;
+		key_scales[key] = 1.0f;
+		if (use_scale && key_data->press_time_ns && age < keyboard->pulse_duration)
+			key_scales[key] -= 0.06f * sinf((float)M_PI * age / keyboard->pulse_duration);
 		has_circle = has_circle || circle_opacities[key] > 0.001f;
 		has_border = has_border || border_opacities[key] > 0.001f;
 	}
@@ -343,21 +355,29 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 	gs_matrix_mul(&rotation);
 	gs_matrix_translate3f(-base_width / 2.0f, -base_height / 2.0f, 0.0f);
 
-	keyboard_resources_prepare_draw(keyboard->effect_image, keyboard->effect_opacity, keyboard->main_image.texture);
-	const size_t passes = gs_technique_begin(keyboard->effect_technique);
+	const bool use_procedural = keyboard->render_style == KEYBOARD_RENDER_PROCEDURAL &&
+					 keyboard->procedural_texture && keyboard->effect_procedural_technique &&
+					 keyboard->effect_corner_radius;
+	gs_technique_t *body_technique = use_procedural ? keyboard->effect_procedural_technique : keyboard->effect_technique;
+	gs_texture_t *body_texture = use_procedural ? keyboard->procedural_texture : keyboard->main_image.texture;
+	keyboard_resources_prepare_draw(keyboard->effect_image, keyboard->effect_opacity, body_texture);
+	if (use_procedural)
+		gs_effect_set_float(keyboard->effect_corner_radius, 0.20f);
+	const size_t passes = gs_technique_begin(body_technique);
 	for (size_t pass = 0; pass < passes; pass++) {
-		gs_technique_begin_pass(keyboard->effect_technique, pass);
+		gs_technique_begin_pass(body_technique, pass);
 		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 			const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-			gs_texture_t *key_texture = keyboard_resources_get_key_texture(keyboard, key_data);
+			gs_texture_t *key_texture = use_procedural ? body_texture : keyboard_resources_get_key_texture(keyboard, key_data);
 			if (key_data->visible && key_texture && key_opacities[key] > 0.0f)
 				keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
 								    key_texture, key_data->x, key_data->y,
-								    key_data->width, key_data->height, key_opacities[key]);
+								    key_data->width * key_scales[key], key_data->height * key_scales[key],
+								    key_opacities[key]);
 		}
-		gs_technique_end_pass(keyboard->effect_technique);
+		gs_technique_end_pass(body_technique);
 	}
-	gs_technique_end(keyboard->effect_technique);
+	gs_technique_end(body_technique);
 
 	if (has_circle) {
 		keyboard_resources_prepare_draw(keyboard->effect_image, keyboard->effect_opacity,
@@ -367,9 +387,10 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 			gs_technique_begin_pass(keyboard->effect_circle_technique, pass);
 			for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 				const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-				gs_texture_t *key_texture = keyboard_resources_get_key_texture(keyboard, key_data);
-				const float effect_width = key_data->width * KEY_EFFECT_SIZE_RATIO;
-				const float effect_height = key_data->height * KEY_EFFECT_SIZE_RATIO;
+				gs_texture_t *key_texture = use_procedural ? keyboard->procedural_texture
+										 : keyboard_resources_get_key_texture(keyboard, key_data);
+				const float effect_width = key_data->width * KEY_EFFECT_SIZE_RATIO * key_scales[key];
+				const float effect_height = key_data->height * KEY_EFFECT_SIZE_RATIO * key_scales[key];
 				if (key_data->visible && key_texture && circle_opacities[key] > 0.001f)
 					keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
 									    key_texture, key_data->x, key_data->y, effect_width, effect_height,
@@ -388,11 +409,13 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 			gs_technique_begin_pass(keyboard->effect_border_technique, pass);
 			for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 				const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-				gs_texture_t *key_texture = keyboard_resources_get_key_texture(keyboard, key_data);
+				gs_texture_t *key_texture = use_procedural ? keyboard->procedural_texture
+										 : keyboard_resources_get_key_texture(keyboard, key_data);
 				if (key_data->visible && key_texture && border_opacities[key] > 0.001f)
 					keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
 									    key_texture, key_data->x,
-								    key_data->y, key_data->width, key_data->height,
+									    key_data->y, key_data->width * key_scales[key],
+									    key_data->height * key_scales[key],
 								    border_opacities[key]);
 			}
 			gs_technique_end_pass(keyboard->effect_border_technique);
@@ -412,8 +435,9 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 			if (!key_data->visible || !key_data->label_texture || key_opacities[key] <= 0.0f)
 				continue;
 			keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-						    key_data->label_texture, key_data->x, key_data->y, key_data->width,
-						    key_data->height, key_opacities[key]);
+						    key_data->label_texture, key_data->x, key_data->y,
+						    key_data->width * key_scales[key],
+						    key_data->height * key_scales[key], key_opacities[key]);
 		}
 		gs_technique_end_pass(keyboard->effect_technique);
 	}

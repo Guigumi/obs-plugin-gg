@@ -9,14 +9,14 @@ The plugin adds two sources:
 
 - **Mouse** shows the cursor (always, or only while in a game), a trail behind it, and a highlight effect on clicks. You pick the monitor, then set the size, opacity, and color of each piece.
 - **Keyboard** is an on-screen keyboard that lights up as you type. It includes `W A S D`, `Keyboard 100%`,
-  `Editing area` and `Numeric keyboard` layouts.
+  `Extras`, `OSU! mania`, `OSU!standard`, `CS2` and `Valorant` layouts.
 
 Neither is a filter. You add them as sources, the same way you'd add a browser or an image.
 
 ## Installation
 
 1. Install OBS Studio from <https://obsproject.com> if you don't have it yet.
-2. Download `Input_overlay_gg_v1.0.0_Setup.exe` from the [releases](https://github.com/Guigumi/obs-plugin-gg/releases) page.
+2. Download `Input_overlay_gg_v1.1.0_Setup.exe` from the [releases](https://github.com/Guigumi/obs-plugin-gg/releases) page.
 3. Close OBS Studio and run the installer as administrator.
 4. Start OBS again after the installation finishes.
 
@@ -35,7 +35,7 @@ OBS is the only dependency. No extra programs or drivers required.
 
 1. Click `+` in **Sources** and pick **Keyboard**.
 2. The **W A S D** layout is already set up: the four keys appear dimmed and light up as you press them.
-3. Choose another layout to show the main keyboard, the editing area or the numeric keyboard.
+3. Choose another layout to show the main keyboard, extras, OSU! controls, CS2 or Valorant keys.
 4. Use the layout-specific `Key: ...` fields to change the displayed labels.
 5. Resize and move the source freely; it only decides where the keyboard sits on screen.
 

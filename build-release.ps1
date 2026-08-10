@@ -50,4 +50,4 @@ if ($LASTEXITCODE -ne 0) {
     throw "Installer build failed with exit code $LASTEXITCODE"
 }
 
-Write-Host "Installer created: $(Join-Path $root 'release\Input_overlay_gg_v1.0.0_Setup.exe')"
+Write-Host "Installer created: $(Join-Path $root 'release\Input_overlay_gg_v1.1.0_Setup.exe')"

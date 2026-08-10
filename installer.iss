@@ -1,5 +1,5 @@
 #define MyAppName "Input Overlay GG"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "GUI"
 #define MyAppURL "https://github.com/Guigumi/obs-plugin-gg"
 #define MyAppId "{D54E1B8B-8AAE-4B3A-9B9A-6B8C2E2D7C10}"
@@ -17,7 +17,7 @@ DefaultDirName={commonappdata}\obs-studio\plugins\mouse-overlay-gg
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 OutputDir=release
-OutputBaseFilename=Input_overlay_gg_v1.0.0_Setup
+OutputBaseFilename=Input_overlay_gg_v1.1.0_Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -32,9 +32,7 @@ ArchitecturesAllowed=x64compatible
 
 [Files]
 Source: "build_x64\RelWithDebInfo\mouse-overlay-gg.dll"; DestDir: "{app}\bin\64bit"; Flags: ignoreversion
-Source: "build_x64\rundir\RelWithDebInfo\mouse-overlay-gg\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "data\images\*"; DestDir: "{app}\data\images"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "data\locale\*"; DestDir: "{app}\data\locale"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

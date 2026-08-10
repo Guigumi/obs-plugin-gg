@@ -42,6 +42,17 @@ static void keyboard_layout_place_vertical_key(struct keyboard_overlay_gg_data *
 	*x += key_width + keyboard->spacing;
 }
 
+static void keyboard_layout_place_compact_key(struct keyboard_overlay_gg_data *keyboard,
+						      enum keyboard_overlay_key key, float *x, float y, float width)
+{
+		const float key_width = keyboard->key_size * width;
+		keyboard->keys[key].width = key_width;
+		keyboard->keys[key].height = keyboard->key_size;
+		keyboard->keys[key].x = *x + key_width / 2.0f;
+		keyboard->keys[key].y = y * keyboard->key_size + keyboard->key_size / 2.0f;
+		*x += key_width;
+}
+
 static void keyboard_layout_set_wasd(struct keyboard_overlay_gg_data *keyboard)
 {
 	keyboard_layout_set_key(keyboard, KEYBOARD_KEY_W, 1.0f, 0.0f, 1.0f, 1.0f);
@@ -215,30 +226,112 @@ static void keyboard_layout_set_editing(struct keyboard_overlay_gg_data *keyboar
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_RIGHT, &x, 4.0f, 1.0f, 1.0f);
 }
 
-static void keyboard_layout_set_numpad(struct keyboard_overlay_gg_data *keyboard)
+static void keyboard_layout_set_numpad_at(struct keyboard_overlay_gg_data *keyboard, float start_x)
 {
-	float x = 0.0f;
+	float x = start_x;
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUM_LOCK, &x, 0.0f, 1.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_DIVIDE, &x, 0.0f, 1.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_MULTIPLY, &x, 0.0f, 1.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_SUBTRACT, &x, 0.0f, 1.0f, 1.0f);
-	x = 0.0f;
+	x = start_x;
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_7, &x, 1.0f, 1.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_8, &x, 1.0f, 1.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_9, &x, 1.0f, 1.0f, 1.0f);
 	keyboard_layout_place_vertical_key(keyboard, KEYBOARD_KEY_NUMPAD_ADD, &x, 1.0f);
-	x = 0.0f;
+	x = start_x;
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_4, &x, 2.0f, 1.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_5, &x, 2.0f, 1.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_6, &x, 2.0f, 1.0f, 1.0f);
-	x = 0.0f;
+	x = start_x;
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_1, &x, 3.0f, 1.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_2, &x, 3.0f, 1.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_3, &x, 3.0f, 1.0f, 1.0f);
 	keyboard_layout_place_vertical_key(keyboard, KEYBOARD_KEY_NUMPAD_ENTER, &x, 3.0f);
-	x = 0.0f;
+	x = start_x;
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_0, &x, 4.0f, 2.0f, 1.0f);
 	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_NUMPAD_DECIMAL, &x, 4.0f, 1.0f, 1.0f);
+}
+
+static void keyboard_layout_set_extras(struct keyboard_overlay_gg_data *keyboard)
+{
+	keyboard_layout_set_editing(keyboard);
+	const float step = keyboard->key_size + keyboard->spacing;
+	keyboard_layout_set_numpad_at(keyboard, step * 3.0f);
+}
+
+static void keyboard_layout_set_osu_mania(struct keyboard_overlay_gg_data *keyboard)
+{
+	float x = 0.0f;
+	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_D, &x, 0.0f, 1.0f, 1.0f);
+	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_F, &x, 0.0f, 1.0f, 1.0f);
+	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_J, &x, 0.0f, 1.0f, 1.0f);
+	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_K, &x, 0.0f, 1.0f, 1.0f);
+}
+
+static void keyboard_layout_set_osu_standard(struct keyboard_overlay_gg_data *keyboard)
+{
+	float x = 0.0f;
+	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_Z, &x, 0.0f, 1.0f, 1.0f);
+	keyboard_layout_place_key(keyboard, KEYBOARD_KEY_X, &x, 0.0f, 1.0f, 1.0f);
+}
+
+static void keyboard_layout_set_cs2(struct keyboard_overlay_gg_data *keyboard)
+{
+	float x = 0.0f;
+	for (enum keyboard_overlay_key key = KEYBOARD_KEY_1; key <= KEYBOARD_KEY_5; key++)
+		keyboard_layout_place_compact_key(keyboard, key, &x, 0.0f, 1.0f);
+	x = 0.0f;
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_TAB, &x, 1.0f, 2.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_Q, &x, 1.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_W, &x, 1.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_E, &x, 1.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_R, &x, 1.0f, 1.0f);
+	x = 0.0f;
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_CAPS, &x, 2.0f, 2.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_A, &x, 2.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_S, &x, 2.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_D, &x, 2.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_F, &x, 2.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_G, &x, 2.0f, 1.0f);
+	x = 0.0f;
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_SHIFT, &x, 3.0f, 2.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_Z, &x, 3.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_X, &x, 3.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_C, &x, 3.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_V, &x, 3.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_B, &x, 3.0f, 1.0f);
+	x = 0.0f;
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_CTRL, &x, 4.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_SPACE, &x, 4.0f, 5.0f);
+}
+
+static void keyboard_layout_set_valorant(struct keyboard_overlay_gg_data *keyboard)
+{
+	float x = 0.0f;
+	for (enum keyboard_overlay_key key = KEYBOARD_KEY_1; key <= KEYBOARD_KEY_4; key++)
+		keyboard_layout_place_compact_key(keyboard, key, &x, 0.0f, 1.0f);
+	x = 0.0f;
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_TAB, &x, 1.0f, 2.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_Q, &x, 1.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_W, &x, 1.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_E, &x, 1.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_R, &x, 1.0f, 1.0f);
+	x = 0.0f;
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_CAPS, &x, 2.0f, 2.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_A, &x, 2.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_S, &x, 2.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_D, &x, 2.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_F, &x, 2.0f, 1.0f);
+	x = 0.0f;
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_SHIFT, &x, 3.0f, 2.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_Z, &x, 3.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_X, &x, 3.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_C, &x, 3.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_V, &x, 3.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_B, &x, 3.0f, 1.0f);
+	x = 0.0f;
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_CTRL, &x, 4.0f, 1.0f);
+	keyboard_layout_place_compact_key(keyboard, KEYBOARD_KEY_SPACE, &x, 4.0f, 5.0f);
 }
 
 void keyboard_layout_update(struct keyboard_overlay_gg_data *keyboard)
@@ -255,7 +348,17 @@ void keyboard_layout_update(struct keyboard_overlay_gg_data *keyboard)
 	else if (keyboard->layout_preset == KEYBOARD_LAYOUT_EDITING)
 		keyboard_layout_set_editing(keyboard);
 	else if (keyboard->layout_preset == KEYBOARD_LAYOUT_NUMPAD)
-		keyboard_layout_set_numpad(keyboard);
+		keyboard_layout_set_numpad_at(keyboard, 0.0f);
+	else if (keyboard->layout_preset == KEYBOARD_LAYOUT_EXTRAS)
+		keyboard_layout_set_extras(keyboard);
+	else if (keyboard->layout_preset == KEYBOARD_LAYOUT_OSU_MANIA)
+		keyboard_layout_set_osu_mania(keyboard);
+	else if (keyboard->layout_preset == KEYBOARD_LAYOUT_OSU_STANDARD)
+		keyboard_layout_set_osu_standard(keyboard);
+	else if (keyboard->layout_preset == KEYBOARD_LAYOUT_CS2)
+		keyboard_layout_set_cs2(keyboard);
+	else if (keyboard->layout_preset == KEYBOARD_LAYOUT_VALORANT)
+		keyboard_layout_set_valorant(keyboard);
 	else
 		keyboard_layout_set_wasd(keyboard);
 }
@@ -271,6 +374,18 @@ void keyboard_layout_get_base_dimensions(const struct keyboard_overlay_gg_data *
 	} else if (keyboard->layout_preset == KEYBOARD_LAYOUT_NUMPAD) {
 		*width = keyboard->key_size * 4.0f + keyboard->spacing * 3.0f;
 		*height = keyboard->key_size * 5.0f + keyboard->spacing * 4.0f;
+	} else if (keyboard->layout_preset == KEYBOARD_LAYOUT_EXTRAS) {
+		*width = keyboard->key_size * 7.0f + keyboard->spacing * 6.0f;
+		*height = keyboard->key_size * 5.0f + keyboard->spacing * 4.0f;
+	} else if (keyboard->layout_preset == KEYBOARD_LAYOUT_OSU_MANIA) {
+		*width = keyboard->key_size * 4.0f + keyboard->spacing * 3.0f;
+		*height = keyboard->key_size;
+	} else if (keyboard->layout_preset == KEYBOARD_LAYOUT_OSU_STANDARD) {
+		*width = keyboard->key_size * 2.0f + keyboard->spacing;
+		*height = keyboard->key_size;
+	} else if (keyboard->layout_preset == KEYBOARD_LAYOUT_CS2 || keyboard->layout_preset == KEYBOARD_LAYOUT_VALORANT) {
+		*width = keyboard->key_size * 7.0f;
+		*height = keyboard->key_size * 5.0f;
 	} else {
 		*width = keyboard->key_size * 3.0f + keyboard->spacing * 2.0f;
 		*height = keyboard->key_size * 2.0f + keyboard->spacing;

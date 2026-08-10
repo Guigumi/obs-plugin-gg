@@ -2,6 +2,7 @@ uniform float4x4 ViewProj;
 uniform texture2d image;
 uniform float opacity;
 uniform float4 tint;
+uniform float corner_radius;
 
 sampler_state keyboard_sampler {
 	Filter   = Linear;
@@ -54,6 +55,20 @@ float4 PSDrawKeyboardBorder(KeyboardVertInOut vert_in) : TARGET
 	return float4(tint.rgb * alpha, alpha);
 }
 
+float4 PSDrawKeyboardProcedural(KeyboardVertInOut vert_in) : TARGET
+{
+	float2 centered = vert_in.uv - 0.5f;
+	float corner = min(max(corner_radius, 0.0f), 0.28f);
+	float2 q = abs(centered) - (0.5f - corner);
+	float outside = max(q, 0.0f);
+	float signed_distance = length(outside) + min(max(q.x, q.y), 0.0f) - corner;
+	float alpha = 1.0f - smoothstep(0.0f, 0.015f, signed_distance);
+	alpha *= opacity;
+	float top_light = 0.86f + 0.18f * (1.0f - vert_in.uv.y);
+	float center_light = 0.96f + 0.04f * (1.0f - abs(centered.x) * 2.0f);
+	return float4(tint.rgb * top_light * center_light * alpha, alpha);
+}
+
 technique DrawKeyboard
 {
 	pass
@@ -78,5 +93,14 @@ technique DrawKeyboardBorder
 	{
 		vertex_shader = VSKeyboard(vert_in);
 		pixel_shader  = PSDrawKeyboardBorder(vert_in);
+	}
+}
+
+technique DrawKeyboardProcedural
+{
+	pass
+	{
+		vertex_shader = VSKeyboard(vert_in);
+		pixel_shader  = PSDrawKeyboardProcedural(vert_in);
 	}
 }
