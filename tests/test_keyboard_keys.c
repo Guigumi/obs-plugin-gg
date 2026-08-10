@@ -33,7 +33,7 @@ static void test_keyboard_keys_clamping(void)
 	obs_data_release(settings);
 }
 
-static void test_keyboard_fade_default_and_clamping(void)
+static void test_keyboard_animation_defaults(void)
 {
 	struct keyboard_overlay_gg_data keyboard;
 	memset(&keyboard, 0, sizeof(keyboard));
@@ -41,12 +41,12 @@ static void test_keyboard_fade_default_and_clamping(void)
 	obs_data_set_bool(settings, "keyboard_enabled", true);
 	keyboard_keys_update(&keyboard, settings);
 	ASSERT_FLOAT_NEAR(0.03f, keyboard.fade_duration, 0.001f);
-	obs_data_set_double(settings, "keyboard_fade_duration", 0.001);
-	keyboard_keys_update(&keyboard, settings);
-	ASSERT_FLOAT_NEAR(0.01f, keyboard.fade_duration, 0.001f);
+	ASSERT_FLOAT_NEAR(0.35f, keyboard.pulse_duration, 0.001f);
 	obs_data_set_double(settings, "keyboard_fade_duration", 1.0);
+	obs_data_set_double(settings, "keyboard_pulse_duration", 1.0);
 	keyboard_keys_update(&keyboard, settings);
-	ASSERT_FLOAT_NEAR(0.50f, keyboard.fade_duration, 0.001f);
+	ASSERT_FLOAT_NEAR(0.03f, keyboard.fade_duration, 0.001f);
+	ASSERT_FLOAT_NEAR(0.35f, keyboard.pulse_duration, 0.001f);
 	obs_data_release(settings);
 }
 
@@ -118,7 +118,7 @@ int main(void)
 	printf("--- Testes de Teclas e Validacao ---\n");
 	RUN_TEST(test_keyboard_keys_initialization);
 	RUN_TEST(test_keyboard_keys_clamping);
-	RUN_TEST(test_keyboard_fade_default_and_clamping);
+	RUN_TEST(test_keyboard_animation_defaults);
 	RUN_TEST(test_keyboard_invalid_values);
 	RUN_TEST(test_keyboard_visibility);
 	RUN_TEST(test_keyboard_preset_visibility);

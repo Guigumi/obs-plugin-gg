@@ -134,8 +134,6 @@ void keyboard_keys_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "keyboard_spacing", KEY_SPACING_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_idle_opacity", KEY_IDLE_OPACITY_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_active_opacity", KEY_ACTIVE_OPACITY_DEFAULT);
-	obs_data_set_default_double(settings, "keyboard_fade_duration", KEY_COLOR_FADE_DURATION_DEFAULT);
-	obs_data_set_default_double(settings, "keyboard_pulse_duration", KEY_PULSE_DURATION_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_rotation", KEY_ROTATION_DEFAULT);
 	obs_data_set_default_int(settings, "keyboard_tint_color", KEY_TINT_COLOR_DEFAULT);
 	obs_data_set_default_int(settings, "keyboard_font_color", KEY_FONT_COLOR_DEFAULT);
@@ -149,8 +147,6 @@ void keyboard_keys_add_properties(obs_properties_t *props)
 {
 	obs_properties_t *keyboard = obs_properties_create();
 	obs_properties_add_group(props, "keyboard_enabled", obs_module_text("Keyboard"), OBS_GROUP_CHECKABLE, keyboard);
-	obs_properties_add_color(keyboard, "keyboard_tint_color", obs_module_text("KeyboardTintColor"));
-	obs_properties_add_font(keyboard, "keyboard_font", obs_module_text("KeyboardFont"));
 	obs_properties_add_float_slider(keyboard, "keyboard_key_size", obs_module_text("KeyboardKeySize"), KEY_SIZE_MIN,
 					KEY_SIZE_MAX, 1.0f);
 	obs_properties_add_float_slider(keyboard, "keyboard_spacing", obs_module_text("KeyboardSpacing"),
@@ -161,10 +157,6 @@ void keyboard_keys_add_properties(obs_properties_t *props)
 					100.0f, 1.0f);
 	obs_properties_add_float_slider(keyboard, "keyboard_active_opacity", obs_module_text("KeyboardActiveOpacity"),
 					0.0f, 100.0f, 1.0f);
-	obs_properties_add_float_slider(keyboard, "keyboard_fade_duration", obs_module_text("KeyboardFadeDuration"),
-					KEY_COLOR_FADE_DURATION_MIN, KEY_COLOR_FADE_DURATION_MAX, 0.01f);
-	obs_properties_add_float_slider(keyboard, "keyboard_pulse_duration", obs_module_text("KeyboardPulseDuration"),
-					KEY_PULSE_DURATION_MIN, KEY_PULSE_DURATION_MAX, 0.05f);
 	obs_property_t *preset = obs_properties_add_list(keyboard, "keyboard_layout_preset",
 								 obs_module_text("KeyboardLayoutPreset"), OBS_COMBO_TYPE_LIST,
 								 OBS_COMBO_FORMAT_INT);
@@ -173,10 +165,12 @@ void keyboard_keys_add_properties(obs_properties_t *props)
 	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutArrows"), KEYBOARD_LAYOUT_ARROWS);
 	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutNumpad"), KEYBOARD_LAYOUT_NUMPAD);
 	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutCustom"), KEYBOARD_LAYOUT_CUSTOM);
-	obs_properties_add_color(keyboard, "keyboard_font_color", obs_module_text("KeyboardFontColor"));
 	obs_properties_t *custom = obs_properties_create();
 	obs_properties_add_group(keyboard, "keyboard_key_configuration", obs_module_text("KeyboardKeyConfiguration"),
 				 OBS_GROUP_NORMAL, custom);
+	obs_properties_add_color(custom, "keyboard_tint_color", obs_module_text("KeyboardTintColor"));
+	obs_properties_add_font(custom, "keyboard_font", obs_module_text("KeyboardFont"));
+	obs_properties_add_color(custom, "keyboard_font_color", obs_module_text("KeyboardFontColor"));
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		obs_properties_add_text(custom, key_character_settings[i], obs_module_text(key_character_labels[i]),
 					OBS_TEXT_DEFAULT);
@@ -199,7 +193,7 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	keyboard->idle_opacity_pct = (float)obs_data_get_double(settings, "keyboard_idle_opacity");
 	keyboard->active_opacity_pct = (float)obs_data_get_double(settings, "keyboard_active_opacity");
 	const double configured_fade_duration = obs_data_get_double(settings, "keyboard_fade_duration");
-	keyboard->pulse_duration = (float)obs_data_get_double(settings, "keyboard_pulse_duration");
+	const double configured_pulse_duration = obs_data_get_double(settings, "keyboard_pulse_duration");
 	keyboard->rotation_deg = (float)obs_data_get_double(settings, "keyboard_rotation");
 	keyboard->tint_color = (uint32_t)obs_data_get_int(settings, "keyboard_tint_color");
 	keyboard->font_color = obs_data_has_user_value(settings, "keyboard_font_color")
@@ -233,8 +227,11 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 		keyboard->fade_duration = (float)configured_fade_duration;
 	keyboard->fade_duration =
 		fminf(fmaxf(keyboard->fade_duration, KEY_COLOR_FADE_DURATION_MIN), KEY_COLOR_FADE_DURATION_MAX);
-	if (!isfinite(keyboard->pulse_duration))
+	if (!obs_data_has_user_value(settings, "keyboard_pulse_duration") || !isfinite(configured_pulse_duration) ||
+	    configured_pulse_duration > FLT_MAX)
 		keyboard->pulse_duration = KEY_PULSE_DURATION_DEFAULT;
+	else
+		keyboard->pulse_duration = (float)configured_pulse_duration;
 	keyboard->pulse_duration =
 		fminf(fmaxf(keyboard->pulse_duration, KEY_PULSE_DURATION_MIN), KEY_PULSE_DURATION_MAX);
 	if (!isfinite(keyboard->rotation_deg))
