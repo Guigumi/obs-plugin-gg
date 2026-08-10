@@ -52,9 +52,9 @@ static void keyboard_overlay_get_defaults(obs_data_t *settings)
 
 static obs_properties_t *keyboard_overlay_get_properties(void *data)
 {
-	UNUSED_PARAMETER(data);
 	obs_properties_t *props = obs_properties_create();
-	keyboard_keys_add_properties(props);
+	const struct keyboard_overlay_gg_data *keyboard = data;
+	keyboard_keys_add_properties(props, keyboard ? keyboard->layout_preset : KEYBOARD_LAYOUT_WASD);
 	return props;
 }
 

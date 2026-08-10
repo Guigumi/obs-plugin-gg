@@ -2,12 +2,12 @@
 
 ## Objetivo atual
 
-Evoluir o overlay de teclado de um conjunto fixo de quatro teclas para layouts de jogo mais flexiveis, com captura
-confiavel, desenho procedural e configuracao clara, sem regredir o comportamento atual de WASD.
+Suportar quatro layouts genericos de teclado, com uma configuracao clara e dependente do layout: `W A S D`, teclado
+100% principal, area de edicao e teclado numerico.
 
 ## Estado atual
 
-- Layout fixo de `W`, `A`, `S` e `D`.
+- O codigo ainda esta em migracao do conjunto anterior de presets para quatro layouts genericos.
 - Setas podem funcionar como aliases de WASD.
 - Tamanho, espacamento, rotacao, opacidades, cor, fonte e caracteres sao configuraveis.
 - Feedback disponivel por circulo suave, borda pulsante ou ambos.
@@ -15,11 +15,20 @@ confiavel, desenho procedural e configuracao clara, sem regredir o comportamento
 - Captura atual usa `GetAsyncKeyState` a cada `video_tick`.
 - A aparencia principal depende de `data/images/key-main.png`.
 
-## Decisoes iniciais
+## Decisoes atuais
 
-- Definir o primeiro conjunto expandido de teclas: `WASD`, `Espaco`, `Shift`, `Ctrl`, `Q`, `E`, `R`, `F`, `Tab`,
-  `Caps Lock` e numeros de `1` a `5`.
-- Definir os presets iniciais: `WASD`, `ESDF`, `Setas`, `Numpad` e `Personalizado`.
+- Os layouts sao `W A S D`, `Teclado 100%`, `Area de edicao` e `Teclado numerico`.
+- O layout e a primeira opcao da fonte e as propriedades abaixo mudam conforme a selecao.
+- O layout `W A S D` exibe somente as quatro teclas em disposicao de jogo.
+- O layout `Teclado 100%` exibe somente a parte principal do teclado ANSI.
+- A area de edicao exibe o cluster de navegacao e o teclado numerico exibe somente o numpad.
+- As opcoes `Tecla: ...` sao separadas por layout e nao exibem teclas de outros grupos.
+- Tamanho, espacamento, rotacao, opacidades, cores e fonte sao compartilhados entre os layouts.
+
+## Decisoes de implementacao anteriores
+
+- Definir o conjunto expandido de teclas: `WASD`, `Espaco`, `Shift`, `Ctrl`, `Q`, `E`, `R`, `F`, `Tab`, `Caps Lock` e
+  numeros de `1` a `5`, preservando as configuracoes existentes de WASD.
 - Escolher entre Raw Input de teclado e `WH_KEYBOARD_LL`, priorizando confiabilidade, compatibilidade com jogos e
   ausencia de interferencia com outros plugins.
 - Decisao: usar Raw Input em thread e janela dedicadas, sem suprimir mensagens legadas e sem substituir um registro
@@ -62,18 +71,19 @@ Status: implementacao concluida; validacao funcional em jogos e com multiplas fo
 
 ## Fase 2 - Layouts e configuracao
 
-Status: implementacao concluida; validacao visual manual dos presets ainda pendente.
+Status: implementacao dos quatro layouts em andamento; validacao visual manual ainda pendente.
 
 - Representar cada tecla com codigo de captura, rotulo, posicao, tamanho e estado de visibilidade.
-- Adicionar presets para os layouts definidos na fase inicial, com Numpad limitado as teclas `1` a `5`.
-- Preservar o layout WASD atual como padrao e manter aliases de setas quando aplicavel.
-- Manter todas as teclas do preset visiveis, sem opcoes individuais que limitem a configuracao principal.
-- Permitir somente caracteres personalizados para todas as teclas visiveis.
-- Usar uma disposicao fixa para o modo `Personalizado`; edicao individual de coordenadas fica fora desta iteracao.
+- Adicionar os presets `W A S D`, `Teclado 100%`, `Area de edicao` e `Teclado numerico`.
+- Preservar o layout WASD atual como padrao e manter aliases de setas para suas quatro teclas.
+- Modelar as 104 teclas fisicas e separar a area principal, navegacao e numpad em layouts proprios.
+- Manter grupos de rotulos especificos para cada layout, sem exibir campos de outros layouts; fonte e aparencia ficam
+  fora desses grupos e continuam compartilhadas.
+- Atualizar dinamicamente a interface de propriedades conforme o layout selecionado.
 - Ajustar automaticamente o tamanho do rotulo conforme o tamanho da tecla, espacamento e comprimento do texto; a
   rotacao global nao altera o tamanho local do rotulo.
 - Organizar as propriedades do OBS para evitar uma lista extensa e confusa de campos.
-- Deixar importacao e exportacao do layout personalizado em JSON para a Fase 4.
+- Deixar outros layouts e importacao/exportacao em JSON para fases posteriores.
 
 ## Fase 3 - Aparencia procedural
 

@@ -82,18 +82,47 @@ static void test_keyboard_visibility(void)
 	obs_data_release(settings);
 }
 
-static void test_keyboard_preset_visibility(void)
+static void test_keyboard_full_layout_visibility(void)
 {
 	struct keyboard_overlay_gg_data keyboard;
 	memset(&keyboard, 0, sizeof(keyboard));
 	keyboard_keys_initialize(&keyboard);
 	obs_data_t *settings = obs_data_create();
 	obs_data_set_bool(settings, "keyboard_enabled", true);
-	obs_data_set_int(settings, "keyboard_layout_preset", KEYBOARD_LAYOUT_NUMPAD);
+	obs_data_set_int(settings, "keyboard_layout_preset", KEYBOARD_LAYOUT_100);
+	keyboard_keys_update(&keyboard, settings);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_W].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_ESCAPE].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_GRAVE].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_Z].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_SPACE].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_RIGHT_CTRL].visible);
+	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_PRINT_SCREEN].visible);
+	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_SCROLL_LOCK].visible);
+	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_PAUSE].visible);
+	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_INSERT].visible);
+	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_NUMPAD_ENTER].visible);
+	ASSERT_TRUE(KEYBOARD_KEY_COUNT > 100);
+	obs_data_release(settings);
+}
+
+static void test_keyboard_cluster_layout_visibility(void)
+{
+	struct keyboard_overlay_gg_data keyboard;
+	memset(&keyboard, 0, sizeof(keyboard));
+	keyboard_keys_initialize(&keyboard);
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_bool(settings, "keyboard_enabled", true);
+	obs_data_set_int(settings, "keyboard_layout_preset", KEYBOARD_LAYOUT_EDITING);
 	keyboard_keys_update(&keyboard, settings);
 	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_W].visible);
-	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_1].visible);
-	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_5].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_PRINT_SCREEN].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_INSERT].visible);
+	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_NUM_LOCK].visible);
+	obs_data_set_int(settings, "keyboard_layout_preset", KEYBOARD_LAYOUT_NUMPAD);
+	keyboard_keys_update(&keyboard, settings);
+	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_INSERT].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_NUM_LOCK].visible);
 	obs_data_release(settings);
 }
 
@@ -113,6 +142,22 @@ static void test_keyboard_font_auto_size_default(void)
 	obs_data_release(settings);
 }
 
+static void test_keyboard_font_color_shared(void)
+{
+	struct keyboard_overlay_gg_data keyboard;
+	memset(&keyboard, 0, sizeof(keyboard));
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_bool(settings, "keyboard_enabled", true);
+	obs_data_set_int(settings, "keyboard_font_color", 0x112233);
+
+	keyboard_keys_update(&keyboard, settings);
+	ASSERT_EQ_INT(0x112233, keyboard.font_color);
+	obs_data_set_int(settings, "keyboard_layout_preset", KEYBOARD_LAYOUT_100);
+	keyboard_keys_update(&keyboard, settings);
+	ASSERT_EQ_INT(0x112233, keyboard.font_color);
+	obs_data_release(settings);
+}
+
 int main(void)
 {
 	printf("--- Testes de Teclas e Validacao ---\n");
@@ -121,7 +166,9 @@ int main(void)
 	RUN_TEST(test_keyboard_animation_defaults);
 	RUN_TEST(test_keyboard_invalid_values);
 	RUN_TEST(test_keyboard_visibility);
-	RUN_TEST(test_keyboard_preset_visibility);
+	RUN_TEST(test_keyboard_full_layout_visibility);
+	RUN_TEST(test_keyboard_cluster_layout_visibility);
 	RUN_TEST(test_keyboard_font_auto_size_default);
+	RUN_TEST(test_keyboard_font_color_shared);
 	TEST_MAIN_END();
 }

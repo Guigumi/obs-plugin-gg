@@ -22,16 +22,18 @@
 #define KEY_LABEL_SUPERSAMPLE_MAX 8u
 #define KEY_LABEL_TEXTURE_MAX 512u
 
-static gs_texture_t *keyboard_resources_create_label_texture(const char *text, obs_data_t *font, float key_size,
-									float spacing, bool font_auto_size)
+static gs_texture_t *keyboard_resources_create_label_texture(const char *text, obs_data_t *font, float key_width,
+									float key_height, float spacing, bool font_auto_size)
 {
-	if (!text || !*text || !font || key_size <= 0.0f)
+	if (!text || !*text || !font || key_width <= 0.0f || key_height <= 0.0f)
 		return NULL;
 	uint32_t supersample = 1u;
+	const float max_key_dimension = fmaxf(key_width, key_height);
 	while (supersample < KEY_LABEL_SUPERSAMPLE_MAX &&
-	       (uint32_t)ceilf(key_size * (float)(supersample + 1)) <= KEY_LABEL_TEXTURE_MAX)
+	       (uint32_t)ceilf(max_key_dimension * (float)(supersample + 1)) <= KEY_LABEL_TEXTURE_MAX)
 		supersample++;
-	const uint32_t texture_size = (uint32_t)ceilf(key_size * supersample);
+	const uint32_t texture_width = (uint32_t)ceilf(key_width * supersample);
+	const uint32_t texture_height = (uint32_t)ceilf(key_height * supersample);
 
 	wchar_t *wide_text = NULL;
 	wchar_t *wide_face = NULL;
@@ -44,8 +46,8 @@ static gs_texture_t *keyboard_resources_create_label_texture(const char *text, o
 
 	BITMAPINFO bitmap_info = {0};
 	bitmap_info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bitmap_info.bmiHeader.biWidth = (LONG)texture_size;
-	bitmap_info.bmiHeader.biHeight = -(LONG)texture_size;
+	bitmap_info.bmiHeader.biWidth = (LONG)texture_width;
+	bitmap_info.bmiHeader.biHeight = -(LONG)texture_height;
 	bitmap_info.bmiHeader.biPlanes = 1;
 	bitmap_info.bmiHeader.biBitCount = 32;
 	bitmap_info.bmiHeader.biCompression = BI_RGB;
@@ -64,10 +66,10 @@ static gs_texture_t *keyboard_resources_create_label_texture(const char *text, o
 			ratio = fminf(ratio, 0.42f);
 		if (text_length > 5)
 			ratio = fminf(ratio, 0.35f);
-		relative_font_size = key_size * ratio;
+		relative_font_size = fminf(key_width, key_height) * ratio;
 	} else {
 		relative_font_size =
-			(configured_font_size > 0 ? configured_font_size : KEY_LABEL_FONT_SIZE_DEFAULT) * key_size /
+			(configured_font_size > 0 ? configured_font_size : KEY_LABEL_FONT_SIZE_DEFAULT) * fminf(key_width, key_height) /
 			KEY_LABEL_REFERENCE_SIZE;
 	}
 	int font_size = (int)fmaxf(1.0f, roundf(relative_font_size * (float)supersample));
@@ -80,8 +82,8 @@ static gs_texture_t *keyboard_resources_create_label_texture(const char *text, o
 		HGDIOBJ old_font = SelectObject(dc, gdi_font);
 		SIZE text_size = {0};
 		if (GetTextExtentPoint32W(dc, wide_text, (int)wcslen(wide_text), &text_size) && text_size.cx > 0) {
-			const float max_text_width = texture_size * 0.86f;
-			const float max_text_height = texture_size * 0.86f;
+			const float max_text_width = texture_width * 0.86f;
+			const float max_text_height = texture_height * 0.86f;
 			const float fit_scale = fminf(max_text_width / (float)text_size.cx,
 						     max_text_height / (float)text_size.cy);
 			if (fit_scale < 1.0f) {
@@ -104,15 +106,15 @@ static gs_texture_t *keyboard_resources_create_label_texture(const char *text, o
 	if (dc && bitmap && pixels && gdi_font) {
 		HGDIOBJ old_bitmap = SelectObject(dc, bitmap);
 		HGDIOBJ old_font = SelectObject(dc, gdi_font);
-		PatBlt(dc, 0, 0, (int)texture_size, (int)texture_size, BLACKNESS);
+		PatBlt(dc, 0, 0, (int)texture_width, (int)texture_height, BLACKNESS);
 		SetBkMode(dc, OPAQUE);
 		SetBkColor(dc, RGB(0, 0, 0));
 		SetTextColor(dc, RGB(255, 255, 255));
-		RECT rect = {0, 0, (LONG)texture_size, (LONG)texture_size};
+		RECT rect = {0, 0, (LONG)texture_width, (LONG)texture_height};
 		DrawTextW(dc, wide_text, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
 		uint8_t *pixel = pixels;
-		for (size_t i = 0; i < (size_t)texture_size * texture_size; i++, pixel += 4) {
+		for (size_t i = 0; i < (size_t)texture_width * texture_height; i++, pixel += 4) {
 			uint8_t coverage = pixel[0] > pixel[1] ? pixel[0] : pixel[1];
 			if (pixel[2] > coverage)
 				coverage = pixel[2];
@@ -124,7 +126,7 @@ static gs_texture_t *keyboard_resources_create_label_texture(const char *text, o
 
 		const uint8_t *levels[] = {pixels};
 		obs_enter_graphics();
-		texture = gs_texture_create(texture_size, texture_size, GS_BGRA, 1, levels, 0);
+		texture = gs_texture_create(texture_width, texture_height, GS_BGRA, 1, levels, 0);
 		obs_leave_graphics();
 		SelectObject(dc, old_font);
 		SelectObject(dc, old_bitmap);
@@ -147,7 +149,7 @@ void keyboard_resources_update_labels(struct keyboard_overlay_gg_data *keyboard,
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		struct keyboard_overlay_key_data *key = &keyboard->keys[i];
 		const char *text = keyboard_keys_get_character(keyboard, settings, i);
-		gs_texture_t *texture = keyboard_resources_create_label_texture(text, font, keyboard->key_size,
+		gs_texture_t *texture = keyboard_resources_create_label_texture(text, font, key->width, key->height,
 										keyboard->spacing, keyboard->font_auto_size);
 		obs_enter_graphics();
 		gs_texture_destroy(key->label_texture);
@@ -161,13 +163,18 @@ void keyboard_resources_update_labels(struct keyboard_overlay_gg_data *keyboard,
 
 void keyboard_resources_init(struct keyboard_overlay_gg_data *keyboard)
 {
-	char *path = obs_module_file("images/key-main.png");
-	gs_image_file_init(&keyboard->main_image, path);
-	if (!keyboard->main_image.loaded)
-		blog(LOG_WARNING, "Failed to load image: %s", path);
-	bfree(path);
+	const char *image_paths[] = {"images/key-main.png", "images/h128.png", "images/400.png", "images/v128.png"};
+	gs_image_file_t *images[] = {&keyboard->main_image, &keyboard->wide_image, &keyboard->space_image,
+					      &keyboard->vertical_image};
+	for (size_t i = 0; i < sizeof(images) / sizeof(images[0]); i++) {
+		char *image_path = obs_module_file(image_paths[i]);
+		gs_image_file_init(images[i], image_path);
+		if (!images[i]->loaded)
+			blog(LOG_WARNING, "Failed to load image: %s", image_path);
+		bfree(image_path);
+	}
 
-	path = obs_module_file("keyboard.effect");
+	char *path = obs_module_file("keyboard.effect");
 	char *effect_errors = NULL;
 	obs_enter_graphics();
 	keyboard->effect = gs_effect_create_from_file(path, &effect_errors);
@@ -195,6 +202,9 @@ void keyboard_resources_free(struct keyboard_overlay_gg_data *keyboard)
 {
 	obs_enter_graphics();
 	gs_image_file_free(&keyboard->main_image);
+	gs_image_file_free(&keyboard->wide_image);
+	gs_image_file_free(&keyboard->space_image);
+	gs_image_file_free(&keyboard->vertical_image);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++)
 		gs_texture_destroy(keyboard->keys[i].label_texture);
 	gs_effect_destroy(keyboard->effect);
@@ -218,6 +228,20 @@ static void keyboard_resources_prepare_draw(gs_eparam_t *image_param, gs_eparam_
 	gs_effect_set_float(opacity_param, 1.0f);
 }
 
+static gs_texture_t *keyboard_resources_get_key_texture(struct keyboard_overlay_gg_data *keyboard,
+								const struct keyboard_overlay_key_data *key)
+{
+	if (keyboard->layout_preset == KEYBOARD_LAYOUT_WASD || keyboard->layout_preset == KEYBOARD_LAYOUT_EDITING)
+		return keyboard->main_image.texture;
+	if (key->width > keyboard->key_size * 4.0f)
+		return keyboard->space_image.texture ? keyboard->space_image.texture : keyboard->main_image.texture;
+	if (key->height > keyboard->key_size * 1.5f)
+		return keyboard->vertical_image.texture ? keyboard->vertical_image.texture : keyboard->main_image.texture;
+	if (key->width > keyboard->key_size * 1.5f)
+		return keyboard->wide_image.texture ? keyboard->wide_image.texture : keyboard->main_image.texture;
+	return keyboard->main_image.texture;
+}
+
 void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 {
 	if (!keyboard->enabled || !keyboard->effect || !keyboard->effect_technique ||
@@ -227,6 +251,12 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 
 	if (!keyboard->main_image.texture && keyboard->main_image.loaded)
 		gs_image_file_init_texture(&keyboard->main_image);
+	if (!keyboard->wide_image.texture && keyboard->wide_image.loaded)
+		gs_image_file_init_texture(&keyboard->wide_image);
+	if (!keyboard->space_image.texture && keyboard->space_image.loaded)
+		gs_image_file_init_texture(&keyboard->space_image);
+	if (!keyboard->vertical_image.texture && keyboard->vertical_image.loaded)
+		gs_image_file_init_texture(&keyboard->vertical_image);
 
 	const float idle_opacity = keyboard->idle_opacity_pct / 100.0f;
 	const float active_opacity = keyboard->active_opacity_pct / 100.0f;
@@ -285,10 +315,11 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 		gs_technique_begin_pass(keyboard->effect_technique, pass);
 		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 			const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-			if (key_data->visible && keyboard->main_image.texture && key_opacities[key] > 0.0f)
+			gs_texture_t *key_texture = keyboard_resources_get_key_texture(keyboard, key_data);
+			if (key_data->visible && key_texture && key_opacities[key] > 0.0f)
 				keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-							    keyboard->main_image.texture, key_data->x, key_data->y,
-							    key_data->width, key_data->height, key_opacities[key]);
+								    key_texture, key_data->x, key_data->y,
+								    key_data->width, key_data->height, key_opacities[key]);
 		}
 		gs_technique_end_pass(keyboard->effect_technique);
 	}
@@ -302,12 +333,13 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 			gs_technique_begin_pass(keyboard->effect_circle_technique, pass);
 			for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 				const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-				const float effect_size = keyboard->key_size * KEY_EFFECT_SIZE_RATIO;
-				if (key_data->visible && circle_opacities[key] > 0.001f)
+				gs_texture_t *key_texture = keyboard_resources_get_key_texture(keyboard, key_data);
+				const float effect_width = key_data->width * KEY_EFFECT_SIZE_RATIO;
+				const float effect_height = key_data->height * KEY_EFFECT_SIZE_RATIO;
+				if (key_data->visible && key_texture && circle_opacities[key] > 0.001f)
 					keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-								    keyboard->main_image.texture, key_data->x,
-								    key_data->y, effect_size, effect_size,
-								    circle_opacities[key]);
+									    key_texture, key_data->x, key_data->y, effect_width, effect_height,
+									    circle_opacities[key]);
 			}
 			gs_technique_end_pass(keyboard->effect_circle_technique);
 		}
@@ -322,9 +354,10 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 			gs_technique_begin_pass(keyboard->effect_border_technique, pass);
 			for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 				const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
-				if (key_data->visible && border_opacities[key] > 0.001f)
+				gs_texture_t *key_texture = keyboard_resources_get_key_texture(keyboard, key_data);
+				if (key_data->visible && key_texture && border_opacities[key] > 0.001f)
 					keyboard_resources_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-								    keyboard->main_image.texture, key_data->x,
+									    key_texture, key_data->x,
 								    key_data->y, key_data->width, key_data->height,
 								    border_opacities[key]);
 			}

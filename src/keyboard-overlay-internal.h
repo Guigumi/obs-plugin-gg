@@ -31,6 +31,9 @@ struct keyboard_overlay_key_data {
 
 struct keyboard_overlay_gg_data {
 	gs_image_file_t main_image;
+	gs_image_file_t wide_image;
+	gs_image_file_t space_image;
+	gs_image_file_t vertical_image;
 	gs_effect_t *effect;
 	gs_technique_t *effect_technique;
 	gs_technique_t *effect_circle_technique;

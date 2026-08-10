@@ -31,31 +31,129 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define RAW_INPUT_EVENT_TIMEOUT_MS 100u
 #define KEYBOARD_FALLBACK_POLL_MS 5u
 #define RAW_INPUT_DEVICE_MAX 32u
+#define KEYBOARD_VIRTUAL_NUMPAD_ENTER 256u
+#define KEYBOARD_VIRTUAL_KEY_COUNT 512u
 
-static const int default_virtual_keys[KEYBOARD_KEY_COUNT] = {
-	'W', 'A', 'S', 'D', VK_SPACE, VK_LSHIFT, VK_LCONTROL, 'Q', 'E', 'R', 'F', VK_TAB, VK_CAPITAL,
-	'1', '2', '3', '4', '5',
-};
-static const int esdf_virtual_keys[KEYBOARD_KEY_COUNT] = {
-	'E', 'S', 'D', 'F', VK_SPACE, VK_LSHIFT, VK_LCONTROL, 'Q', 'E', 'R', 'F', VK_TAB, VK_CAPITAL,
-	'1', '2', '3', '4', '5',
-};
-static const int arrow_virtual_keys[KEYBOARD_KEY_COUNT] = {VK_UP, VK_LEFT, VK_DOWN, VK_RIGHT};
-static const int numpad_virtual_keys[KEYBOARD_KEY_COUNT] = {VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5};
+static int keyboard_key_virtual_key(enum keyboard_overlay_key key)
+{
+	switch (key) {
+	case KEYBOARD_KEY_W: return 'W';
+	case KEYBOARD_KEY_A: return 'A';
+	case KEYBOARD_KEY_S: return 'S';
+	case KEYBOARD_KEY_D: return 'D';
+	case KEYBOARD_KEY_SPACE: return VK_SPACE;
+	case KEYBOARD_KEY_SHIFT: return VK_LSHIFT;
+	case KEYBOARD_KEY_CTRL: return VK_LCONTROL;
+	case KEYBOARD_KEY_Q: return 'Q';
+	case KEYBOARD_KEY_E: return 'E';
+	case KEYBOARD_KEY_R: return 'R';
+	case KEYBOARD_KEY_F: return 'F';
+	case KEYBOARD_KEY_TAB: return VK_TAB;
+	case KEYBOARD_KEY_CAPS: return VK_CAPITAL;
+	case KEYBOARD_KEY_1: return '1';
+	case KEYBOARD_KEY_2: return '2';
+	case KEYBOARD_KEY_3: return '3';
+	case KEYBOARD_KEY_4: return '4';
+	case KEYBOARD_KEY_5: return '5';
+	case KEYBOARD_KEY_ESCAPE: return VK_ESCAPE;
+	case KEYBOARD_KEY_F1: return VK_F1;
+	case KEYBOARD_KEY_F2: return VK_F2;
+	case KEYBOARD_KEY_F3: return VK_F3;
+	case KEYBOARD_KEY_F4: return VK_F4;
+	case KEYBOARD_KEY_F5: return VK_F5;
+	case KEYBOARD_KEY_F6: return VK_F6;
+	case KEYBOARD_KEY_F7: return VK_F7;
+	case KEYBOARD_KEY_F8: return VK_F8;
+	case KEYBOARD_KEY_F9: return VK_F9;
+	case KEYBOARD_KEY_F10: return VK_F10;
+	case KEYBOARD_KEY_F11: return VK_F11;
+	case KEYBOARD_KEY_F12: return VK_F12;
+	case KEYBOARD_KEY_PRINT_SCREEN: return VK_SNAPSHOT;
+	case KEYBOARD_KEY_SCROLL_LOCK: return VK_SCROLL;
+	case KEYBOARD_KEY_PAUSE: return VK_PAUSE;
+	case KEYBOARD_KEY_GRAVE: return VK_OEM_3;
+	case KEYBOARD_KEY_6: return '6';
+	case KEYBOARD_KEY_7: return '7';
+	case KEYBOARD_KEY_8: return '8';
+	case KEYBOARD_KEY_9: return '9';
+	case KEYBOARD_KEY_0: return '0';
+	case KEYBOARD_KEY_MINUS: return VK_OEM_MINUS;
+	case KEYBOARD_KEY_EQUAL: return VK_OEM_PLUS;
+	case KEYBOARD_KEY_BACKSPACE: return VK_BACK;
+	case KEYBOARD_KEY_T: return 'T';
+	case KEYBOARD_KEY_Y: return 'Y';
+	case KEYBOARD_KEY_U: return 'U';
+	case KEYBOARD_KEY_I: return 'I';
+	case KEYBOARD_KEY_O: return 'O';
+	case KEYBOARD_KEY_P: return 'P';
+	case KEYBOARD_KEY_LEFT_BRACKET: return VK_OEM_4;
+	case KEYBOARD_KEY_RIGHT_BRACKET: return VK_OEM_6;
+	case KEYBOARD_KEY_BACKSLASH: return VK_OEM_5;
+	case KEYBOARD_KEY_G: return 'G';
+	case KEYBOARD_KEY_H: return 'H';
+	case KEYBOARD_KEY_J: return 'J';
+	case KEYBOARD_KEY_K: return 'K';
+	case KEYBOARD_KEY_L: return 'L';
+	case KEYBOARD_KEY_SEMICOLON: return VK_OEM_1;
+	case KEYBOARD_KEY_APOSTROPHE: return VK_OEM_7;
+	case KEYBOARD_KEY_ENTER: return VK_RETURN;
+	case KEYBOARD_KEY_Z: return 'Z';
+	case KEYBOARD_KEY_X: return 'X';
+	case KEYBOARD_KEY_C: return 'C';
+	case KEYBOARD_KEY_V: return 'V';
+	case KEYBOARD_KEY_B: return 'B';
+	case KEYBOARD_KEY_N: return 'N';
+	case KEYBOARD_KEY_M: return 'M';
+	case KEYBOARD_KEY_COMMA: return VK_OEM_COMMA;
+	case KEYBOARD_KEY_PERIOD: return VK_OEM_PERIOD;
+	case KEYBOARD_KEY_SLASH: return VK_OEM_2;
+	case KEYBOARD_KEY_RIGHT_SHIFT: return VK_RSHIFT;
+	case KEYBOARD_KEY_LEFT_ALT: return VK_LMENU;
+	case KEYBOARD_KEY_LEFT_WINDOWS: return VK_LWIN;
+	case KEYBOARD_KEY_RIGHT_ALT: return VK_RMENU;
+	case KEYBOARD_KEY_RIGHT_WINDOWS: return VK_RWIN;
+	case KEYBOARD_KEY_MENU: return VK_APPS;
+	case KEYBOARD_KEY_RIGHT_CTRL: return VK_RCONTROL;
+	case KEYBOARD_KEY_INSERT: return VK_INSERT;
+	case KEYBOARD_KEY_HOME: return VK_HOME;
+	case KEYBOARD_KEY_PAGE_UP: return VK_PRIOR;
+	case KEYBOARD_KEY_DELETE: return VK_DELETE;
+	case KEYBOARD_KEY_END: return VK_END;
+	case KEYBOARD_KEY_PAGE_DOWN: return VK_NEXT;
+	case KEYBOARD_KEY_UP: return VK_UP;
+	case KEYBOARD_KEY_LEFT: return VK_LEFT;
+	case KEYBOARD_KEY_DOWN: return VK_DOWN;
+	case KEYBOARD_KEY_RIGHT: return VK_RIGHT;
+	case KEYBOARD_KEY_NUM_LOCK: return VK_NUMLOCK;
+	case KEYBOARD_KEY_NUMPAD_DIVIDE: return VK_DIVIDE;
+	case KEYBOARD_KEY_NUMPAD_MULTIPLY: return VK_MULTIPLY;
+	case KEYBOARD_KEY_NUMPAD_SUBTRACT: return VK_SUBTRACT;
+	case KEYBOARD_KEY_NUMPAD_7: return VK_NUMPAD7;
+	case KEYBOARD_KEY_NUMPAD_8: return VK_NUMPAD8;
+	case KEYBOARD_KEY_NUMPAD_9: return VK_NUMPAD9;
+	case KEYBOARD_KEY_NUMPAD_ADD: return VK_ADD;
+	case KEYBOARD_KEY_NUMPAD_4: return VK_NUMPAD4;
+	case KEYBOARD_KEY_NUMPAD_5: return VK_NUMPAD5;
+	case KEYBOARD_KEY_NUMPAD_6: return VK_NUMPAD6;
+	case KEYBOARD_KEY_NUMPAD_1: return VK_NUMPAD1;
+	case KEYBOARD_KEY_NUMPAD_2: return VK_NUMPAD2;
+	case KEYBOARD_KEY_NUMPAD_3: return VK_NUMPAD3;
+	case KEYBOARD_KEY_NUMPAD_0: return VK_NUMPAD0;
+	case KEYBOARD_KEY_NUMPAD_DECIMAL: return VK_DECIMAL;
+	case KEYBOARD_KEY_NUMPAD_ENTER: return KEYBOARD_VIRTUAL_NUMPAD_ENTER;
+	default: return -1;
+	}
+}
 
 static SRWLOCK capture_lock = SRWLOCK_INIT;
-static bool physical_states[256];
-static bool wasd_states[KEYBOARD_KEY_COUNT];
-static bool esdf_states[KEYBOARD_KEY_COUNT];
-static bool alias_states[KEYBOARD_KEY_COUNT];
-static bool numpad_states[KEYBOARD_KEY_COUNT];
-static long wasd_press_sequences[KEYBOARD_KEY_COUNT];
-static long esdf_press_sequences[KEYBOARD_KEY_COUNT];
-static long alias_press_sequences[KEYBOARD_KEY_COUNT];
-static long numpad_press_sequences[KEYBOARD_KEY_COUNT];
+static bool physical_states[KEYBOARD_VIRTUAL_KEY_COUNT];
+static bool logical_states[KEYBOARD_KEY_COUNT];
+static bool alias_states[4];
+static long logical_press_sequences[KEYBOARD_KEY_COUNT];
+static long alias_press_sequences[4];
 struct raw_keyboard_state {
 	HANDLE device;
-	bool physical_states[256];
+	bool physical_states[KEYBOARD_VIRTUAL_KEY_COUNT];
 };
 static struct raw_keyboard_state raw_keyboards[RAW_INPUT_DEVICE_MAX];
 static HANDLE raw_input_thread;
@@ -74,36 +172,48 @@ static bool key_down(int virtual_key)
 static void update_logical_states(void)
 {
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
-		const bool wasd_down = physical_states[default_virtual_keys[i]];
-		const bool esdf_down = physical_states[esdf_virtual_keys[i]];
-		const bool alias_down = wasd_down || physical_states[arrow_virtual_keys[i]];
-		const bool numpad_down = i < 5 && physical_states[numpad_virtual_keys[i]];
-		if (wasd_down && !wasd_states[i])
-			wasd_press_sequences[i]++;
-		if (esdf_down && !esdf_states[i])
-			esdf_press_sequences[i]++;
+		const int virtual_key = keyboard_key_virtual_key((enum keyboard_overlay_key)i);
+		const bool down = virtual_key >= 0 && physical_states[virtual_key];
+		if (down && !logical_states[i])
+			logical_press_sequences[i]++;
+		logical_states[i] = down;
+	}
+
+	const int wasd_virtual_keys[4] = {'W', 'A', 'S', 'D'};
+	const int arrow_virtual_keys[4] = {VK_UP, VK_LEFT, VK_DOWN, VK_RIGHT};
+	for (size_t i = 0; i < 4; i++) {
+		const bool alias_down = physical_states[wasd_virtual_keys[i]] || physical_states[arrow_virtual_keys[i]];
 		if (alias_down && !alias_states[i])
 			alias_press_sequences[i]++;
-		if (numpad_down && !numpad_states[i])
-			numpad_press_sequences[i]++;
-		wasd_states[i] = wasd_down;
-		esdf_states[i] = esdf_down;
 		alias_states[i] = alias_down;
-		numpad_states[i] = numpad_down;
 	}
 }
 
 static void update_physical_key(unsigned int virtual_key, bool down)
 {
-	if (virtual_key >= 256 || physical_states[virtual_key] == down)
+	if (virtual_key >= KEYBOARD_VIRTUAL_KEY_COUNT || physical_states[virtual_key] == down)
 		return;
 	physical_states[virtual_key] = down;
 	update_logical_states();
 }
 
+static unsigned int keyboard_normalize_raw_virtual_key(const RAWKEYBOARD *keyboard)
+{
+	const bool extended = (keyboard->Flags & RI_KEY_E0) != 0;
+	if (keyboard->VKey == VK_SHIFT)
+		return keyboard->MakeCode == 0x36 ? VK_RSHIFT : VK_LSHIFT;
+	if (keyboard->VKey == VK_CONTROL)
+		return extended ? VK_RCONTROL : VK_LCONTROL;
+	if (keyboard->VKey == VK_MENU)
+		return extended ? VK_RMENU : VK_LMENU;
+	if (keyboard->VKey == VK_RETURN && extended)
+		return KEYBOARD_VIRTUAL_NUMPAD_ENTER;
+	return keyboard->VKey;
+}
+
 static void update_raw_key(HANDLE device, unsigned int virtual_key, bool down)
 {
-	if (virtual_key >= 256)
+	if (virtual_key >= KEYBOARD_VIRTUAL_KEY_COUNT)
 		return;
 
 	AcquireSRWLockExclusive(&capture_lock);
@@ -144,10 +254,8 @@ static void reset_pressed_states(void)
 {
 	AcquireSRWLockExclusive(&capture_lock);
 	memset(physical_states, 0, sizeof(physical_states));
-	memset(wasd_states, 0, sizeof(wasd_states));
-	memset(esdf_states, 0, sizeof(esdf_states));
+	memset(logical_states, 0, sizeof(logical_states));
 	memset(alias_states, 0, sizeof(alias_states));
-	memset(numpad_states, 0, sizeof(numpad_states));
 	memset(raw_keyboards, 0, sizeof(raw_keyboards));
 	ReleaseSRWLockExclusive(&capture_lock);
 }
@@ -156,12 +264,14 @@ static void reconcile_wasd_states(void)
 {
 	AcquireSRWLockExclusive(&capture_lock);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
-		update_physical_key((unsigned int)default_virtual_keys[i], key_down(default_virtual_keys[i]));
-		update_physical_key((unsigned int)esdf_virtual_keys[i], key_down(esdf_virtual_keys[i]));
-		update_physical_key((unsigned int)arrow_virtual_keys[i], key_down(arrow_virtual_keys[i]));
-		if (i < 5)
-			update_physical_key((unsigned int)numpad_virtual_keys[i], key_down(numpad_virtual_keys[i]));
+		const int virtual_key = keyboard_key_virtual_key((enum keyboard_overlay_key)i);
+		if (virtual_key >= 0 && virtual_key != KEYBOARD_VIRTUAL_NUMPAD_ENTER)
+			update_physical_key((unsigned int)virtual_key, key_down(virtual_key));
 	}
+	update_physical_key(VK_UP, key_down(VK_UP));
+	update_physical_key(VK_LEFT, key_down(VK_LEFT));
+	update_physical_key(VK_DOWN, key_down(VK_DOWN));
+	update_physical_key(VK_RIGHT, key_down(VK_RIGHT));
 	ReleaseSRWLockExclusive(&capture_lock);
 }
 
@@ -242,7 +352,7 @@ static LRESULT CALLBACK raw_input_window_proc(HWND window, UINT message, WPARAM 
 		    input.header.dwType == RIM_TYPEKEYBOARD && input.data.keyboard.VKey != 0xFF) {
 			const bool down = (input.data.keyboard.Flags & RI_KEY_BREAK) == 0;
 			InterlockedExchange64(&raw_input_last_event_time, (LONG64)GetTickCount64());
-			update_raw_key(input.header.hDevice, input.data.keyboard.VKey, down);
+			update_raw_key(input.header.hDevice, keyboard_normalize_raw_virtual_key(&input.data.keyboard), down);
 		}
 		return DefWindowProcW(window, message, wparam, lparam);
 	}
@@ -407,18 +517,12 @@ void keyboard_capture_sample(enum keyboard_capture_layout layout, bool arrow_ali
 
 	AcquireSRWLockShared(&capture_lock);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
-		if (layout == KEYBOARD_LAYOUT_ESDF) {
-			snapshot->pressed[i] = esdf_states[i];
-			snapshot->press_sequences[i] = esdf_press_sequences[i];
-		} else if (layout == KEYBOARD_LAYOUT_ARROWS) {
-			snapshot->pressed[i] = i < 4 && physical_states[arrow_virtual_keys[i]];
+		if (layout == KEYBOARD_LAYOUT_WASD && i < 4 && arrow_aliases) {
+			snapshot->pressed[i] = alias_states[i];
 			snapshot->press_sequences[i] = alias_press_sequences[i];
-		} else if (layout == KEYBOARD_LAYOUT_NUMPAD) {
-			snapshot->pressed[i] = numpad_states[i];
-			snapshot->press_sequences[i] = numpad_press_sequences[i];
 		} else {
-			snapshot->pressed[i] = arrow_aliases ? alias_states[i] : wasd_states[i];
-			snapshot->press_sequences[i] = arrow_aliases ? alias_press_sequences[i] : wasd_press_sequences[i];
+			snapshot->pressed[i] = logical_states[i];
+			snapshot->press_sequences[i] = logical_press_sequences[i];
 		}
 	}
 	ReleaseSRWLockShared(&capture_lock);
