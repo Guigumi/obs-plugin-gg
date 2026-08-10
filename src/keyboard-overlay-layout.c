@@ -13,7 +13,6 @@ void keyboard_layout_update(struct keyboard_overlay_gg_data *keyboard)
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		keyboard->keys[i].width = keyboard->key_size;
 		keyboard->keys[i].height = keyboard->key_size;
-		keyboard->keys[i].visible = true;
 	}
 	keyboard->keys[KEYBOARD_KEY_W].x = step + half_size;
 	keyboard->keys[KEYBOARD_KEY_W].y = half_size;

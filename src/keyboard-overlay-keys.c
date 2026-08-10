@@ -129,7 +129,8 @@ void keyboard_keys_add_properties(obs_properties_t *props)
 	obs_properties_add_text(keyboard, "keyboard_character_d", obs_module_text("KeyboardCharacterD"),
 				OBS_TEXT_DEFAULT);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++)
-		obs_properties_add_bool(keyboard, key_visibility_settings[i], obs_module_text(key_visibility_labels[i]));
+		obs_properties_add_bool(keyboard, key_visibility_settings[i],
+					obs_module_text(key_visibility_labels[i]));
 
 	obs_property_t *feedback = obs_properties_add_list(keyboard, "keyboard_feedback",
 							   obs_module_text("KeyboardFeedback"), OBS_COMBO_TYPE_LIST,
@@ -156,7 +157,7 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	keyboard->feedback = (int)obs_data_get_int(settings, "keyboard_feedback");
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++)
 		keyboard->keys[i].visible = !obs_data_has_user_value(settings, key_visibility_settings[i]) ||
-								  obs_data_get_bool(settings, key_visibility_settings[i]);
+					    obs_data_get_bool(settings, key_visibility_settings[i]);
 
 	if (!isfinite(keyboard->key_size))
 		keyboard->key_size = KEY_SIZE_DEFAULT;

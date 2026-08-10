@@ -62,7 +62,7 @@ Status: implementacao concluida; validacao funcional em jogos e com multiplas fo
 
 ## Fase 2 - Layouts e configuracao
 
-Status: em andamento; modelo interno por tecla concluido para o layout WASD atual.
+Status: em andamento; modelo interno por tecla e visibilidade individual concluidos para o layout WASD atual.
 
 - Representar cada tecla com codigo de captura, rotulo, posicao, tamanho e estado de visibilidade.
 - Adicionar presets para os layouts definidos na fase inicial.
