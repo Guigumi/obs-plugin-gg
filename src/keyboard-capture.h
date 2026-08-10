@@ -28,4 +28,14 @@ enum keyboard_overlay_key {
 	KEYBOARD_KEY_COUNT,
 };
 
-void keyboard_capture_sample_wasd(bool arrow_aliases, bool pressed[KEYBOARD_KEY_COUNT]);
+struct keyboard_capture_snapshot {
+	bool pressed[KEYBOARD_KEY_COUNT];
+	long press_sequences[KEYBOARD_KEY_COUNT];
+};
+
+bool keyboard_capture_initialize(void);
+void keyboard_capture_shutdown(void);
+
+/* Every source receives the same state and press sequences. With Raw Input, a
+ * sequence also preserves a complete press that occurs between source ticks. */
+void keyboard_capture_sample_wasd(bool arrow_aliases, struct keyboard_capture_snapshot *snapshot);

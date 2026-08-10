@@ -22,9 +22,30 @@ confiavel, desenho procedural e configuracao clara, sem regredir o comportamento
 - Definir os presets iniciais: `WASD`, `ESDF`, `Setas`, `Numpad` e `Personalizado`.
 - Escolher entre Raw Input de teclado e `WH_KEYBOARD_LL`, priorizando confiabilidade, compatibilidade com jogos e
   ausencia de interferencia com outros plugins.
+- Decisao: usar Raw Input em thread e janela dedicadas, sem suprimir mensagens legadas e sem substituir um registro
+  de teclado pertencente a outro componente. Usar `GetAsyncKeyState` somente como fallback degradado.
 - Definir se a primeira iteracao permite apenas presets ou tambem posicionamento individual das teclas.
 
+## Fase 0 - Limpeza de codigo e revisao de estrutura
+
+Status: implementacao estrutural concluida; validacao visual do layout WASD ainda pendente.
+
+- Remover codigo morto, comentarios obsoletos e includes nao utilizados em `keyboard-overlay.c`.
+- Padronizar nomes internos e substituir valores magicos por constantes nomeadas no modulo responsavel.
+- Aplicar `.clang-format` antes de iniciar mudancas funcionais.
+- Separar o codigo atual sem alterar comportamento:
+  - `keyboard-overlay.c`: ciclo de vida e integracao com OBS.
+  - `keyboard-overlay-internal.h`: estado compartilhado da fonte.
+  - `keyboard-overlay-layout.c/h`: posicoes e dimensoes do layout WASD atual.
+  - `keyboard-overlay-keys.c/h`: configuracoes, captura e animacao das teclas.
+  - `keyboard-overlay-resources.c/h`: shader, imagens, rotulos e renderizacao.
+  - `keyboard-capture-win32.c`: manter temporariamente a captura atual com `GetAsyncKeyState`.
+- Atualizar `CMakeLists.txt` para compilar os novos modulos.
+- Executar build e revisar o diff para confirmar que o layout e o comportamento WASD permanecem inalterados.
+
 ## Fase 1 - Arquitetura e captura
+
+Status: implementacao concluida; validacao funcional em jogos e com multiplas fontes ainda pendente.
 
 - Separar responsabilidades hoje concentradas em `keyboard-overlay.c`:
   - `keyboard-overlay.c`: ciclo de vida e integracao com OBS.
@@ -40,6 +61,8 @@ confiavel, desenho procedural e configuracao clara, sem regredir o comportamento
 - Garantir inicializacao e encerramento seguros, sem hooks, handles ou threads remanescentes.
 
 ## Fase 2 - Layouts e configuracao
+
+Status: em andamento; modelo interno por tecla concluido para o layout WASD atual.
 
 - Representar cada tecla com codigo de captura, rotulo, posicao, tamanho e estado de visibilidade.
 - Adicionar presets para os layouts definidos na fase inicial.

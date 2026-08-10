@@ -41,14 +41,17 @@ endif()
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE src/plugin-main.c
-          src/keyboard-overlay.c
-          src/keyboard-capture-win32.c
-          src/mouse-overlay.c
-          src/mouse-overlay-cursor.c
-          src/mouse-overlay-trail.c
-          src/mouse-overlay-click.c
-          src/mouse-overlay-resources.c
-          src/mouse-capture-win32.c
+           src/keyboard-overlay.c
+           src/keyboard-overlay-layout.c
+           src/keyboard-overlay-keys.c
+           src/keyboard-overlay-resources.c
+           src/keyboard-capture-win32.c
+           src/mouse-overlay.c
+           src/mouse-overlay-cursor.c
+           src/mouse-overlay-trail.c
+           src/mouse-overlay-click.c
+           src/mouse-overlay-resources.c
+           src/mouse-capture-win32.c
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

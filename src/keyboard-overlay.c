@@ -16,87 +16,16 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#include <obs-module.h>
-#include <graphics/graphics.h>
-#include <graphics/image-file.h>
-#include <graphics/matrix4.h>
-#include <graphics/vec4.h>
-#include <util/platform.h>
-
-#include <windows.h>
-
-#include "keyboard-capture.h"
 #include "keyboard-overlay.h"
 
+#include "keyboard-overlay-internal.h"
+#include "keyboard-overlay-keys.h"
+#include "keyboard-overlay-layout.h"
+#include "keyboard-overlay-resources.h"
+
+#include <obs-module.h>
+
 #include <math.h>
-#include <stdint.h>
-#include <string.h>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-#define KEY_SIZE_DEFAULT 64.0f
-#define KEY_SIZE_MIN 8.0f
-#define KEY_SIZE_MAX 256.0f
-#define KEY_SPACING_DEFAULT 8.0f
-#define KEY_SPACING_MIN 0.0f
-#define KEY_SPACING_MAX 64.0f
-#define KEY_IDLE_OPACITY_DEFAULT 35.0f
-#define KEY_ACTIVE_OPACITY_DEFAULT 100.0f
-#define KEY_PULSE_DURATION_DEFAULT 0.35f
-#define KEY_PULSE_DURATION_MIN 0.1f
-#define KEY_PULSE_DURATION_MAX 2.0f
-#define KEY_COLOR_FADE_SECONDS 0.10f
-#define KEY_EFFECT_SIZE_RATIO (54.0f / 64.0f)
-#define KEY_ROTATION_DEFAULT 0.0f
-#define KEY_ROTATION_MIN -180.0f
-#define KEY_ROTATION_MAX 180.0f
-#define KEY_TINT_COLOR_DEFAULT 0xFFFFFF
-#define KEY_LABEL_COLOR_DARK 0x202020
-#define KEY_LABEL_COLOR_LIGHT 0xFFFFFF
-#define KEY_LABEL_FONT_SIZE_DEFAULT 36
-#define KEY_LABEL_REFERENCE_SIZE 64.0f
-#define KEY_LABEL_SUPERSAMPLE_MAX 8u
-#define KEY_LABEL_TEXTURE_MAX 512u
-
-#define KEY_FEEDBACK_COLOR 0
-#define KEY_FEEDBACK_PULSE 1
-#define KEY_FEEDBACK_BOTH 2
-#define KEY_FEEDBACK_DEFAULT KEY_FEEDBACK_BOTH
-
-static const char *const key_character_settings[KEYBOARD_KEY_COUNT] = {
-	"keyboard_character_w",
-	"keyboard_character_a",
-	"keyboard_character_s",
-	"keyboard_character_d",
-};
-
-struct keyboard_overlay_gg_data {
-	gs_image_file_t main_image;
-	gs_texture_t *label_textures[KEYBOARD_KEY_COUNT];
-	gs_effect_t *effect;
-	gs_technique_t *effect_technique;
-	gs_technique_t *effect_circle_technique;
-	gs_technique_t *effect_border_technique;
-	gs_eparam_t *effect_image;
-	gs_eparam_t *effect_opacity;
-	gs_eparam_t *effect_tint;
-
-	bool enabled;
-	bool arrow_aliases;
-	float key_size;
-	float spacing;
-	float idle_opacity_pct;
-	float active_opacity_pct;
-	float pulse_duration;
-	float rotation_deg;
-	uint32_t tint_color;
-	int feedback;
-	bool pressed[KEYBOARD_KEY_COUNT];
-	float color_levels[KEYBOARD_KEY_COUNT];
-	uint64_t press_time_ns[KEYBOARD_KEY_COUNT];
-};
 
 static const char *keyboard_overlay_get_name(void *type_data)
 {
@@ -118,243 +47,33 @@ static const char *keyboard_overlay_get_light_icon(void *type_data)
 
 static void keyboard_overlay_get_defaults(obs_data_t *settings)
 {
-	obs_data_t *font = obs_data_create();
-	obs_data_set_default_string(font, "face", "Arial");
-	obs_data_set_default_int(font, "size", KEY_LABEL_FONT_SIZE_DEFAULT);
-	obs_data_set_default_int(font, "flags", OBS_FONT_BOLD);
-	obs_data_set_default_obj(settings, "keyboard_font", font);
-	obs_data_release(font);
-
-	obs_data_set_default_bool(settings, "keyboard_enabled", true);
-	obs_data_set_default_bool(settings, "keyboard_arrow_aliases", true);
-	obs_data_set_default_double(settings, "keyboard_key_size", KEY_SIZE_DEFAULT);
-	obs_data_set_default_double(settings, "keyboard_spacing", KEY_SPACING_DEFAULT);
-	obs_data_set_default_double(settings, "keyboard_idle_opacity", KEY_IDLE_OPACITY_DEFAULT);
-	obs_data_set_default_double(settings, "keyboard_active_opacity", KEY_ACTIVE_OPACITY_DEFAULT);
-	obs_data_set_default_double(settings, "keyboard_pulse_duration", KEY_PULSE_DURATION_DEFAULT);
-	obs_data_set_default_double(settings, "keyboard_rotation", KEY_ROTATION_DEFAULT);
-	obs_data_set_default_int(settings, "keyboard_tint_color", KEY_TINT_COLOR_DEFAULT);
-	obs_data_set_default_int(settings, "keyboard_feedback", KEY_FEEDBACK_DEFAULT);
-	obs_data_set_default_string(settings, "keyboard_character_w", "W");
-	obs_data_set_default_string(settings, "keyboard_character_a", "A");
-	obs_data_set_default_string(settings, "keyboard_character_s", "S");
-	obs_data_set_default_string(settings, "keyboard_character_d", "D");
+	keyboard_keys_defaults(settings);
 }
 
 static obs_properties_t *keyboard_overlay_get_properties(void *data)
 {
 	UNUSED_PARAMETER(data);
-
 	obs_properties_t *props = obs_properties_create();
-	obs_properties_t *keyboard = obs_properties_create();
-	obs_properties_add_group(props, "keyboard_enabled", obs_module_text("Keyboard"), OBS_GROUP_CHECKABLE, keyboard);
-	obs_properties_add_float_slider(keyboard, "keyboard_key_size", obs_module_text("KeyboardKeySize"), KEY_SIZE_MIN,
-					KEY_SIZE_MAX, 1.0f);
-	obs_properties_add_float_slider(keyboard, "keyboard_spacing", obs_module_text("KeyboardSpacing"),
-					KEY_SPACING_MIN, KEY_SPACING_MAX, 1.0f);
-	obs_properties_add_float_slider(keyboard, "keyboard_rotation", obs_module_text("KeyboardRotation"),
-					KEY_ROTATION_MIN, KEY_ROTATION_MAX, 1.0f);
-	obs_properties_add_float_slider(keyboard, "keyboard_idle_opacity", obs_module_text("KeyboardIdleOpacity"), 0.0f,
-					100.0f, 1.0f);
-	obs_properties_add_float_slider(keyboard, "keyboard_active_opacity", obs_module_text("KeyboardActiveOpacity"),
-					0.0f, 100.0f, 1.0f);
-	obs_properties_add_float_slider(keyboard, "keyboard_pulse_duration", obs_module_text("KeyboardPulseDuration"),
-					KEY_PULSE_DURATION_MIN, KEY_PULSE_DURATION_MAX, 0.05f);
-	obs_properties_add_bool(keyboard, "keyboard_arrow_aliases", obs_module_text("KeyboardArrowAliases"));
-	obs_properties_add_color(keyboard, "keyboard_tint_color", obs_module_text("KeyboardTintColor"));
-	obs_properties_add_font(keyboard, "keyboard_font", obs_module_text("KeyboardFont"));
-	obs_properties_add_text(keyboard, "keyboard_character_w", obs_module_text("KeyboardCharacterW"),
-				OBS_TEXT_DEFAULT);
-	obs_properties_add_text(keyboard, "keyboard_character_a", obs_module_text("KeyboardCharacterA"),
-				OBS_TEXT_DEFAULT);
-	obs_properties_add_text(keyboard, "keyboard_character_s", obs_module_text("KeyboardCharacterS"),
-				OBS_TEXT_DEFAULT);
-	obs_properties_add_text(keyboard, "keyboard_character_d", obs_module_text("KeyboardCharacterD"),
-				OBS_TEXT_DEFAULT);
-
-	obs_property_t *feedback = obs_properties_add_list(keyboard, "keyboard_feedback",
-							   obs_module_text("KeyboardFeedback"), OBS_COMBO_TYPE_LIST,
-							   OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(feedback, obs_module_text("KeyboardFeedbackColor"), KEY_FEEDBACK_COLOR);
-	obs_property_list_add_int(feedback, obs_module_text("KeyboardFeedbackPulse"), KEY_FEEDBACK_PULSE);
-	obs_property_list_add_int(feedback, obs_module_text("KeyboardFeedbackBoth"), KEY_FEEDBACK_BOTH);
+	keyboard_keys_add_properties(props);
 	return props;
-}
-
-static gs_texture_t *keyboard_overlay_create_label_texture(const char *text, obs_data_t *font, float key_size)
-{
-	if (!text || !*text || !font || key_size <= 0.0f)
-		return NULL;
-	uint32_t supersample = 1u;
-	while (supersample < KEY_LABEL_SUPERSAMPLE_MAX &&
-	       (uint32_t)ceilf(key_size * (float)(supersample + 1)) <= KEY_LABEL_TEXTURE_MAX)
-		supersample++;
-	const uint32_t texture_size = (uint32_t)ceilf(key_size * supersample);
-
-	wchar_t *wide_text = NULL;
-	wchar_t *wide_face = NULL;
-	const char *face = obs_data_get_string(font, "face");
-	if (!os_utf8_to_wcs_ptr(text, 0, &wide_text) || !os_utf8_to_wcs_ptr(face, 0, &wide_face)) {
-		bfree(wide_text);
-		bfree(wide_face);
-		return NULL;
-	}
-
-	BITMAPINFO bitmap_info = {0};
-	bitmap_info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bitmap_info.bmiHeader.biWidth = (LONG)texture_size;
-	bitmap_info.bmiHeader.biHeight = -(LONG)texture_size;
-	bitmap_info.bmiHeader.biPlanes = 1;
-	bitmap_info.bmiHeader.biBitCount = 32;
-	bitmap_info.bmiHeader.biCompression = BI_RGB;
-
-	void *pixels = NULL;
-	HDC dc = CreateCompatibleDC(NULL);
-	HBITMAP bitmap = dc ? CreateDIBSection(dc, &bitmap_info, DIB_RGB_COLORS, &pixels, NULL, 0) : NULL;
-	const int configured_font_size = (int)obs_data_get_int(font, "size");
-	const float relative_font_size =
-		(configured_font_size > 0 ? configured_font_size : KEY_LABEL_FONT_SIZE_DEFAULT) * key_size /
-		KEY_LABEL_REFERENCE_SIZE;
-	const int font_size = (int)fmaxf(1.0f, roundf(relative_font_size * (float)supersample));
-	const int64_t font_flags = obs_data_get_int(font, "flags");
-	HFONT gdi_font = CreateFontW(-font_size, 0, 0, 0, (font_flags & OBS_FONT_BOLD) ? FW_BOLD : FW_NORMAL,
-				     (font_flags & OBS_FONT_ITALIC) != 0, (font_flags & OBS_FONT_UNDERLINE) != 0,
-				     (font_flags & OBS_FONT_STRIKEOUT) != 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-				     CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, wide_face);
-	gs_texture_t *texture = NULL;
-	if (dc && bitmap && pixels && gdi_font) {
-		HGDIOBJ old_bitmap = SelectObject(dc, bitmap);
-		HGDIOBJ old_font = SelectObject(dc, gdi_font);
-		PatBlt(dc, 0, 0, (int)texture_size, (int)texture_size, BLACKNESS);
-		SetBkMode(dc, OPAQUE);
-		SetBkColor(dc, RGB(0, 0, 0));
-		SetTextColor(dc, RGB(255, 255, 255));
-		RECT rect = {0, 0, (LONG)texture_size, (LONG)texture_size};
-		DrawTextW(dc, wide_text, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-
-		uint8_t *pixel = pixels;
-		for (size_t i = 0; i < (size_t)texture_size * texture_size; i++, pixel += 4) {
-			uint8_t coverage = pixel[0] > pixel[1] ? pixel[0] : pixel[1];
-			if (pixel[2] > coverage)
-				coverage = pixel[2];
-			pixel[0] = 255;
-			pixel[1] = 255;
-			pixel[2] = 255;
-			pixel[3] = coverage;
-		}
-
-		const uint8_t *levels[] = {pixels};
-		obs_enter_graphics();
-		texture = gs_texture_create(texture_size, texture_size, GS_BGRA, 1, levels, 0);
-		obs_leave_graphics();
-		SelectObject(dc, old_font);
-		SelectObject(dc, old_bitmap);
-	}
-
-	if (gdi_font)
-		DeleteObject(gdi_font);
-	if (bitmap)
-		DeleteObject(bitmap);
-	if (dc)
-		DeleteDC(dc);
-	bfree(wide_text);
-	bfree(wide_face);
-	return texture;
-}
-
-static void keyboard_overlay_update_labels(struct keyboard_overlay_gg_data *keyboard, obs_data_t *settings)
-{
-	obs_data_t *font = obs_data_get_obj(settings, "keyboard_font");
-	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
-		const char *text = obs_data_get_string(settings, key_character_settings[i]);
-		gs_texture_t *texture = keyboard_overlay_create_label_texture(text, font, keyboard->key_size);
-		obs_enter_graphics();
-		gs_texture_destroy(keyboard->label_textures[i]);
-		keyboard->label_textures[i] = texture;
-		obs_leave_graphics();
-		if (*text && !texture)
-			blog(LOG_WARNING, "Failed to render keyboard character: %s", text);
-	}
-	obs_data_release(font);
 }
 
 static void keyboard_overlay_update(void *data, obs_data_t *settings)
 {
 	struct keyboard_overlay_gg_data *keyboard = data;
-	keyboard->enabled = obs_data_get_bool(settings, "keyboard_enabled");
-	keyboard->arrow_aliases = obs_data_get_bool(settings, "keyboard_arrow_aliases");
-	keyboard->key_size = (float)obs_data_get_double(settings, "keyboard_key_size");
-	keyboard->spacing = (float)obs_data_get_double(settings, "keyboard_spacing");
-	keyboard->idle_opacity_pct = (float)obs_data_get_double(settings, "keyboard_idle_opacity");
-	keyboard->active_opacity_pct = (float)obs_data_get_double(settings, "keyboard_active_opacity");
-	keyboard->pulse_duration = (float)obs_data_get_double(settings, "keyboard_pulse_duration");
-	keyboard->rotation_deg = (float)obs_data_get_double(settings, "keyboard_rotation");
-	keyboard->tint_color = (uint32_t)obs_data_get_int(settings, "keyboard_tint_color");
-	keyboard->feedback = (int)obs_data_get_int(settings, "keyboard_feedback");
-
-	if (!isfinite(keyboard->key_size))
-		keyboard->key_size = KEY_SIZE_DEFAULT;
-	keyboard->key_size = fminf(fmaxf(keyboard->key_size, KEY_SIZE_MIN), KEY_SIZE_MAX);
-	if (!isfinite(keyboard->spacing))
-		keyboard->spacing = KEY_SPACING_DEFAULT;
-	keyboard->spacing = fminf(fmaxf(keyboard->spacing, KEY_SPACING_MIN), KEY_SPACING_MAX);
-	if (!isfinite(keyboard->idle_opacity_pct))
-		keyboard->idle_opacity_pct = KEY_IDLE_OPACITY_DEFAULT;
-	keyboard->idle_opacity_pct = fminf(fmaxf(keyboard->idle_opacity_pct, 0.0f), 100.0f);
-	if (!isfinite(keyboard->active_opacity_pct))
-		keyboard->active_opacity_pct = KEY_ACTIVE_OPACITY_DEFAULT;
-	keyboard->active_opacity_pct = fminf(fmaxf(keyboard->active_opacity_pct, 0.0f), 100.0f);
-	if (!isfinite(keyboard->pulse_duration))
-		keyboard->pulse_duration = KEY_PULSE_DURATION_DEFAULT;
-	keyboard->pulse_duration =
-		fminf(fmaxf(keyboard->pulse_duration, KEY_PULSE_DURATION_MIN), KEY_PULSE_DURATION_MAX);
-	if (!isfinite(keyboard->rotation_deg))
-		keyboard->rotation_deg = KEY_ROTATION_DEFAULT;
-	keyboard->rotation_deg = fminf(fmaxf(keyboard->rotation_deg, KEY_ROTATION_MIN), KEY_ROTATION_MAX);
-	if (keyboard->feedback < KEY_FEEDBACK_COLOR || keyboard->feedback > KEY_FEEDBACK_BOTH)
-		keyboard->feedback = KEY_FEEDBACK_DEFAULT;
-	keyboard_overlay_update_labels(keyboard, settings);
-	if (!keyboard->enabled) {
-		memset(keyboard->pressed, 0, sizeof(keyboard->pressed));
-		memset(keyboard->color_levels, 0, sizeof(keyboard->color_levels));
-		memset(keyboard->press_time_ns, 0, sizeof(keyboard->press_time_ns));
-	}
+	keyboard_keys_update(keyboard, settings);
+	keyboard_layout_update(keyboard);
+	keyboard_resources_update_labels(keyboard, settings);
 }
 
 static void *keyboard_overlay_create(obs_data_t *settings, obs_source_t *source)
 {
 	UNUSED_PARAMETER(source);
-	struct keyboard_overlay_gg_data *data = bzalloc(sizeof(*data));
-	keyboard_overlay_update(data, settings);
-
-	char *path = obs_module_file("images/key-main.png");
-	gs_image_file_init(&data->main_image, path);
-	if (!data->main_image.loaded)
-		blog(LOG_WARNING, "Failed to load image: %s", path);
-	bfree(path);
-
-	path = obs_module_file("keyboard.effect");
-	char *effect_errors = NULL;
-	obs_enter_graphics();
-	data->effect = gs_effect_create_from_file(path, &effect_errors);
-	obs_leave_graphics();
-	bfree(path);
-
-	if (data->effect) {
-		data->effect_technique = gs_effect_get_technique(data->effect, "DrawKeyboard");
-		data->effect_circle_technique = gs_effect_get_technique(data->effect, "DrawKeyboardCircle");
-		data->effect_border_technique = gs_effect_get_technique(data->effect, "DrawKeyboardBorder");
-		data->effect_image = gs_effect_get_param_by_name(data->effect, "image");
-		data->effect_opacity = gs_effect_get_param_by_name(data->effect, "opacity");
-		data->effect_tint = gs_effect_get_param_by_name(data->effect, "tint");
-		if (!data->effect_technique || !data->effect_circle_technique || !data->effect_border_technique ||
-		    !data->effect_image || !data->effect_opacity || !data->effect_tint)
-			blog(LOG_ERROR, "keyboard.effect is missing required entries");
-	} else {
-		blog(LOG_ERROR, "Failed to load keyboard.effect: %s", effect_errors ? effect_errors : "unknown error");
-	}
-	bfree(effect_errors);
-	return data;
+	struct keyboard_overlay_gg_data *keyboard = bzalloc(sizeof(*keyboard));
+	keyboard_keys_initialize(keyboard);
+	keyboard_overlay_update(keyboard, settings);
+	keyboard_resources_init(keyboard);
+	return keyboard;
 }
 
 static void keyboard_overlay_destroy(void *data)
@@ -362,26 +81,8 @@ static void keyboard_overlay_destroy(void *data)
 	struct keyboard_overlay_gg_data *keyboard = data;
 	if (!keyboard)
 		return;
-
-	obs_enter_graphics();
-	gs_image_file_free(&keyboard->main_image);
-	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++)
-		gs_texture_destroy(keyboard->label_textures[i]);
-	gs_effect_destroy(keyboard->effect);
-	obs_leave_graphics();
+	keyboard_resources_free(keyboard);
 	bfree(keyboard);
-}
-
-static void keyboard_overlay_get_dimensions(const struct keyboard_overlay_gg_data *keyboard, float *width,
-					    float *height)
-{
-	const float base_width = keyboard->key_size * 3.0f + keyboard->spacing * 2.0f;
-	const float base_height = keyboard->key_size * 2.0f + keyboard->spacing;
-	const float radians = keyboard->rotation_deg * (float)M_PI / 180.0f;
-	const float cosine = fabsf(cosf(radians));
-	const float sine = fabsf(sinf(radians));
-	*width = base_width * cosine + base_height * sine;
-	*height = base_width * sine + base_height * cosine;
 }
 
 static uint32_t keyboard_overlay_get_width(void *data)
@@ -389,7 +90,7 @@ static uint32_t keyboard_overlay_get_width(void *data)
 	const struct keyboard_overlay_gg_data *keyboard = data;
 	float width;
 	float height;
-	keyboard_overlay_get_dimensions(keyboard, &width, &height);
+	keyboard_layout_get_dimensions(keyboard, &width, &height);
 	UNUSED_PARAMETER(height);
 	return (uint32_t)ceilf(width);
 }
@@ -399,175 +100,20 @@ static uint32_t keyboard_overlay_get_height(void *data)
 	const struct keyboard_overlay_gg_data *keyboard = data;
 	float width;
 	float height;
-	keyboard_overlay_get_dimensions(keyboard, &width, &height);
+	keyboard_layout_get_dimensions(keyboard, &width, &height);
 	UNUSED_PARAMETER(width);
 	return (uint32_t)ceilf(height);
 }
 
 static void keyboard_overlay_video_tick(void *data, float seconds)
 {
-	struct keyboard_overlay_gg_data *keyboard = data;
-	if (!keyboard->enabled)
-		return;
-
-	bool pressed[KEYBOARD_KEY_COUNT];
-	keyboard_capture_sample_wasd(keyboard->arrow_aliases, pressed);
-	const uint64_t now_ns = os_gettime_ns();
-	const float fade_step = fminf(seconds / KEY_COLOR_FADE_SECONDS, 1.0f);
-	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
-		if (pressed[i] && !keyboard->pressed[i])
-			keyboard->press_time_ns[i] = now_ns;
-		const float target = pressed[i] ? 1.0f : 0.0f;
-		keyboard->color_levels[i] += (target - keyboard->color_levels[i]) * fade_step;
-		keyboard->pressed[i] = pressed[i];
-	}
-}
-
-static void keyboard_overlay_draw_key(gs_eparam_t *image_param, gs_eparam_t *opacity_param, gs_texture_t *texture,
-				      float x, float y, float size, float opacity)
-{
-	gs_effect_set_texture(image_param, texture);
-	gs_effect_set_float(opacity_param, opacity);
-	gs_matrix_push();
-	gs_matrix_translate3f(x - size / 2.0f, y - size / 2.0f, 0.0f);
-	gs_draw_sprite(texture, 0, (uint32_t)size, (uint32_t)size);
-	gs_matrix_pop();
+	keyboard_keys_tick(data, seconds);
 }
 
 static void keyboard_overlay_video_render(void *data, gs_effect_t *effect)
 {
 	UNUSED_PARAMETER(effect);
-	struct keyboard_overlay_gg_data *keyboard = data;
-	if (!keyboard->enabled || !keyboard->effect || !keyboard->effect_technique ||
-	    !keyboard->effect_circle_technique || !keyboard->effect_border_technique || !keyboard->effect_image ||
-	    !keyboard->effect_opacity || !keyboard->effect_tint)
-		return;
-
-	if (!keyboard->main_image.texture && keyboard->main_image.loaded)
-		gs_image_file_init_texture(&keyboard->main_image);
-
-	gs_technique_t *technique = keyboard->effect_technique;
-	gs_technique_t *circle_technique = keyboard->effect_circle_technique;
-	gs_technique_t *border_technique = keyboard->effect_border_technique;
-
-	const float step = keyboard->key_size + keyboard->spacing;
-	const float positions[KEYBOARD_KEY_COUNT][2] = {
-		{step + keyboard->key_size / 2.0f, keyboard->key_size / 2.0f},
-		{keyboard->key_size / 2.0f, step + keyboard->key_size / 2.0f},
-		{step + keyboard->key_size / 2.0f, step + keyboard->key_size / 2.0f},
-		{step * 2.0f + keyboard->key_size / 2.0f, step + keyboard->key_size / 2.0f},
-	};
-	const float idle_opacity = keyboard->idle_opacity_pct / 100.0f;
-	const float active_opacity = keyboard->active_opacity_pct / 100.0f;
-	const uint64_t now_ns = os_gettime_ns();
-	float circle_opacities[KEYBOARD_KEY_COUNT];
-	float border_opacities[KEYBOARD_KEY_COUNT];
-
-	const float tint_red = (float)(keyboard->tint_color & 0xFF) / 255.0f;
-	const float tint_green = (float)((keyboard->tint_color >> 8) & 0xFF) / 255.0f;
-	const float tint_blue = (float)((keyboard->tint_color >> 16) & 0xFF) / 255.0f;
-	const float tint_luminance = tint_red * 0.2126f + tint_green * 0.7152f + tint_blue * 0.0722f;
-	const uint32_t label_color = tint_luminance > 0.55f ? KEY_LABEL_COLOR_DARK : KEY_LABEL_COLOR_LIGHT;
-
-	for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
-		const bool use_color = keyboard->feedback != KEY_FEEDBACK_PULSE;
-		const bool use_pulse = keyboard->feedback != KEY_FEEDBACK_COLOR;
-		const float age = keyboard->press_time_ns[key] ? (float)(now_ns - keyboard->press_time_ns[key]) * 1e-9f
-							       : keyboard->pulse_duration;
-		float pulse_level = 0.0f;
-		if (use_pulse && age < keyboard->pulse_duration) {
-			const float t = age / keyboard->pulse_duration;
-			pulse_level = sinf((float)M_PI * t);
-		}
-		const float color_level = use_color ? keyboard->color_levels[key] : 0.0f;
-		circle_opacities[key] = active_opacity * color_level * 0.35f;
-		border_opacities[key] = active_opacity * pulse_level * 0.22f;
-	}
-
-	struct vec4 tint;
-	vec4_from_rgba(&tint, keyboard->tint_color | 0xFF000000);
-	gs_effect_set_vec4(keyboard->effect_tint, &tint);
-
-	const float base_width = keyboard->key_size * 3.0f + keyboard->spacing * 2.0f;
-	const float base_height = keyboard->key_size * 2.0f + keyboard->spacing;
-	float output_width;
-	float output_height;
-	keyboard_overlay_get_dimensions(keyboard, &output_width, &output_height);
-	struct matrix4 identity;
-	struct matrix4 rotation;
-	matrix4_identity(&identity);
-	matrix4_rotate_aa4f(&rotation, &identity, 0.0f, 0.0f, 1.0f, keyboard->rotation_deg * (float)M_PI / 180.0f);
-
-	gs_blend_state_push();
-	gs_blend_function(GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
-	gs_matrix_push();
-	gs_matrix_translate3f(output_width / 2.0f, output_height / 2.0f, 0.0f);
-	gs_matrix_mul(&rotation);
-	gs_matrix_translate3f(-base_width / 2.0f, -base_height / 2.0f, 0.0f);
-
-	/* 1. Main keys (static at idle opacity) */
-	const size_t passes = gs_technique_begin(technique);
-	for (size_t pass = 0; pass < passes; pass++) {
-		gs_technique_begin_pass(technique, pass);
-		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
-			if (keyboard->main_image.texture && idle_opacity > 0.0f)
-				keyboard_overlay_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-							  keyboard->main_image.texture, positions[key][0],
-							  positions[key][1], keyboard->key_size, idle_opacity);
-		}
-		gs_technique_end_pass(technique);
-	}
-	gs_technique_end(technique);
-
-	/* 2. Procedural Circle Effect */
-	const size_t circle_passes = gs_technique_begin(circle_technique);
-	for (size_t pass = 0; pass < circle_passes; pass++) {
-		gs_technique_begin_pass(circle_technique, pass);
-		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
-			const float effect_size = keyboard->key_size * KEY_EFFECT_SIZE_RATIO;
-			if (circle_opacities[key] > 0.001f)
-				keyboard_overlay_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-							  keyboard->main_image.texture, positions[key][0],
-							  positions[key][1], effect_size, circle_opacities[key]);
-		}
-		gs_technique_end_pass(circle_technique);
-	}
-	gs_technique_end(circle_technique);
-
-	/* 3. Procedural Border Effect */
-	const size_t border_passes = gs_technique_begin(border_technique);
-	for (size_t pass = 0; pass < border_passes; pass++) {
-		gs_technique_begin_pass(border_technique, pass);
-		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
-			if (border_opacities[key] > 0.001f)
-				keyboard_overlay_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-							  keyboard->main_image.texture, positions[key][0],
-							  positions[key][1], keyboard->key_size, border_opacities[key]);
-		}
-		gs_technique_end_pass(border_technique);
-	}
-	gs_technique_end(border_technique);
-
-	/* 4. Labels (static text color and idle opacity) */
-	vec4_from_rgba(&tint, label_color | 0xFF000000);
-	gs_effect_set_vec4(keyboard->effect_tint, &tint);
-	const size_t label_passes = gs_technique_begin(technique);
-	for (size_t pass = 0; pass < label_passes; pass++) {
-		gs_technique_begin_pass(technique, pass);
-		for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
-			if (!keyboard->label_textures[key] || idle_opacity <= 0.0f)
-				continue;
-			keyboard_overlay_draw_key(keyboard->effect_image, keyboard->effect_opacity,
-						  keyboard->label_textures[key], positions[key][0], positions[key][1],
-						  keyboard->key_size, idle_opacity);
-		}
-		gs_technique_end_pass(technique);
-	}
-	gs_technique_end(technique);
-
-	gs_matrix_pop();
-	gs_effect_set_texture(keyboard->effect_image, NULL);
-	gs_blend_state_pop();
+	keyboard_resources_render(data);
 }
 
 struct obs_source_info keyboard_overlay_gg_source_info = {
