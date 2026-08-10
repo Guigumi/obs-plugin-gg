@@ -27,6 +27,7 @@
 #define KEY_ROTATION_MIN -180.0f
 #define KEY_ROTATION_MAX 180.0f
 #define KEY_TINT_COLOR_DEFAULT 0xFFFFFF
+#define KEY_FONT_COLOR_DEFAULT 0xFFFFFF
 #define KEY_LABEL_FONT_SIZE_DEFAULT 36
 #define KEY_FEEDBACK_DEFAULT KEYBOARD_FEEDBACK_BOTH
 
@@ -65,41 +66,6 @@ static const char *const arrows_default_characters[4] = {"Up", "Left", "Down", "
 static const char *const numpad_default_characters[5] = {"1", "2", "3", "4", "5"};
 static const char *const esdf_default_characters[KEYBOARD_KEY_COUNT] = {
 	"E", "S", "D", "F", "Space", "Shift", "Ctrl", "Q", "E", "R", "F", "Tab", "Caps", "1", "2", "3", "4", "5",
-};
-
-static const char *const key_visibility_settings[KEYBOARD_KEY_COUNT] = {
-	"keyboard_visible_w",
-	"keyboard_visible_a",
-	"keyboard_visible_s",
-	"keyboard_visible_d",
-	"keyboard_visible_space", "keyboard_visible_shift", "keyboard_visible_ctrl", "keyboard_visible_q",
-	"keyboard_visible_e", "keyboard_visible_r", "keyboard_visible_f", "keyboard_visible_tab", "keyboard_visible_caps",
-	"keyboard_visible_1", "keyboard_visible_2", "keyboard_visible_3", "keyboard_visible_4", "keyboard_visible_5",
-};
-
-static const char *const key_visibility_labels[KEYBOARD_KEY_COUNT] = {
-	"KeyboardVisibleW",
-	"KeyboardVisibleA",
-	"KeyboardVisibleS",
-	"KeyboardVisibleD",
-	"KeyboardVisibleSpace", "KeyboardVisibleShift", "KeyboardVisibleCtrl", "KeyboardVisibleQ",
-	"KeyboardVisibleE", "KeyboardVisibleR", "KeyboardVisibleF", "KeyboardVisibleTab", "KeyboardVisibleCaps",
-	"KeyboardVisible1", "KeyboardVisible2", "KeyboardVisible3", "KeyboardVisible4", "KeyboardVisible5",
-};
-
-static const char *const position_x_settings[KEYBOARD_KEY_COUNT] = {
-	"keyboard_position_x_w", "keyboard_position_x_a", "keyboard_position_x_s", "keyboard_position_x_d",
-	"keyboard_position_x_space", "keyboard_position_x_shift", "keyboard_position_x_ctrl", "keyboard_position_x_q",
-	"keyboard_position_x_e", "keyboard_position_x_r", "keyboard_position_x_f", "keyboard_position_x_tab",
-	"keyboard_position_x_caps", "keyboard_position_x_1", "keyboard_position_x_2", "keyboard_position_x_3",
-	"keyboard_position_x_4", "keyboard_position_x_5",
-};
-static const char *const position_y_settings[KEYBOARD_KEY_COUNT] = {
-	"keyboard_position_y_w", "keyboard_position_y_a", "keyboard_position_y_s", "keyboard_position_y_d",
-	"keyboard_position_y_space", "keyboard_position_y_shift", "keyboard_position_y_ctrl", "keyboard_position_y_q",
-	"keyboard_position_y_e", "keyboard_position_y_r", "keyboard_position_y_f", "keyboard_position_y_tab",
-	"keyboard_position_y_caps", "keyboard_position_y_1", "keyboard_position_y_2", "keyboard_position_y_3",
-	"keyboard_position_y_4", "keyboard_position_y_5",
 };
 
 static void keyboard_keys_sync_capture(struct keyboard_overlay_gg_data *keyboard)
@@ -172,12 +138,10 @@ void keyboard_keys_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, "keyboard_pulse_duration", KEY_PULSE_DURATION_DEFAULT);
 	obs_data_set_default_double(settings, "keyboard_rotation", KEY_ROTATION_DEFAULT);
 	obs_data_set_default_int(settings, "keyboard_tint_color", KEY_TINT_COLOR_DEFAULT);
+	obs_data_set_default_int(settings, "keyboard_font_color", KEY_FONT_COLOR_DEFAULT);
 	obs_data_set_default_int(settings, "keyboard_feedback", KEY_FEEDBACK_DEFAULT);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		obs_data_set_default_string(settings, key_character_settings[i], default_characters[i]);
-		obs_data_set_default_bool(settings, key_visibility_settings[i], true);
-		obs_data_set_default_double(settings, position_x_settings[i], (double)(i % 5) / 4.0);
-		obs_data_set_default_double(settings, position_y_settings[i], (double)(i / 5) / 3.0);
 	}
 }
 
@@ -185,6 +149,8 @@ void keyboard_keys_add_properties(obs_properties_t *props)
 {
 	obs_properties_t *keyboard = obs_properties_create();
 	obs_properties_add_group(props, "keyboard_enabled", obs_module_text("Keyboard"), OBS_GROUP_CHECKABLE, keyboard);
+	obs_properties_add_color(keyboard, "keyboard_tint_color", obs_module_text("KeyboardTintColor"));
+	obs_properties_add_font(keyboard, "keyboard_font", obs_module_text("KeyboardFont"));
 	obs_properties_add_float_slider(keyboard, "keyboard_key_size", obs_module_text("KeyboardKeySize"), KEY_SIZE_MIN,
 					KEY_SIZE_MAX, 1.0f);
 	obs_properties_add_float_slider(keyboard, "keyboard_spacing", obs_module_text("KeyboardSpacing"),
@@ -199,7 +165,6 @@ void keyboard_keys_add_properties(obs_properties_t *props)
 					KEY_COLOR_FADE_DURATION_MIN, KEY_COLOR_FADE_DURATION_MAX, 0.01f);
 	obs_properties_add_float_slider(keyboard, "keyboard_pulse_duration", obs_module_text("KeyboardPulseDuration"),
 					KEY_PULSE_DURATION_MIN, KEY_PULSE_DURATION_MAX, 0.05f);
-	obs_properties_add_bool(keyboard, "keyboard_arrow_aliases", obs_module_text("KeyboardArrowAliases"));
 	obs_property_t *preset = obs_properties_add_list(keyboard, "keyboard_layout_preset",
 								 obs_module_text("KeyboardLayoutPreset"), OBS_COMBO_TYPE_LIST,
 								 OBS_COMBO_FORMAT_INT);
@@ -208,64 +173,45 @@ void keyboard_keys_add_properties(obs_properties_t *props)
 	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutArrows"), KEYBOARD_LAYOUT_ARROWS);
 	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutNumpad"), KEYBOARD_LAYOUT_NUMPAD);
 	obs_property_list_add_int(preset, obs_module_text("KeyboardLayoutCustom"), KEYBOARD_LAYOUT_CUSTOM);
-	obs_properties_add_color(keyboard, "keyboard_tint_color", obs_module_text("KeyboardTintColor"));
-	obs_properties_add_font(keyboard, "keyboard_font", obs_module_text("KeyboardFont"));
+	obs_properties_add_color(keyboard, "keyboard_font_color", obs_module_text("KeyboardFontColor"));
 	obs_properties_t *custom = obs_properties_create();
-	obs_properties_add_group(keyboard, "keyboard_custom_layout", obs_module_text("KeyboardCustomLayout"),
+	obs_properties_add_group(keyboard, "keyboard_key_configuration", obs_module_text("KeyboardKeyConfiguration"),
 				 OBS_GROUP_NORMAL, custom);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		obs_properties_add_text(custom, key_character_settings[i], obs_module_text(key_character_labels[i]),
 					OBS_TEXT_DEFAULT);
-		obs_properties_add_float_slider(custom, position_x_settings[i], obs_module_text("KeyboardPositionX"), 0.0, 1.0,
-					0.01);
-		obs_properties_add_float_slider(custom, position_y_settings[i], obs_module_text("KeyboardPositionY"), 0.0, 1.0,
-					0.01);
 	}
-	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++)
-		obs_properties_add_bool(keyboard, key_visibility_settings[i],
-					obs_module_text(key_visibility_labels[i]));
 
-	obs_property_t *feedback = obs_properties_add_list(keyboard, "keyboard_feedback",
-							   obs_module_text("KeyboardFeedback"), OBS_COMBO_TYPE_LIST,
-							   OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(feedback, obs_module_text("KeyboardFeedbackColor"), KEYBOARD_FEEDBACK_COLOR);
-	obs_property_list_add_int(feedback, obs_module_text("KeyboardFeedbackPulse"), KEYBOARD_FEEDBACK_PULSE);
-	obs_property_list_add_int(feedback, obs_module_text("KeyboardFeedbackBoth"), KEYBOARD_FEEDBACK_BOTH);
 }
 
 void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t *settings)
 {
-	const bool arrow_aliases = obs_data_get_bool(settings, "keyboard_arrow_aliases");
-	const bool arrow_aliases_changed = keyboard->arrow_aliases != arrow_aliases;
+	const bool arrow_aliases_changed = !keyboard->arrow_aliases;
 	const enum keyboard_capture_layout configured_layout =
 		(enum keyboard_capture_layout)obs_data_get_int(settings, "keyboard_layout_preset");
 	const bool layout_changed = keyboard->layout_preset != configured_layout;
 	keyboard->enabled = obs_data_get_bool(settings, "keyboard_enabled");
-	keyboard->arrow_aliases = arrow_aliases;
+	keyboard->arrow_aliases = true;
 	keyboard->layout_preset = configured_layout;
 	keyboard->key_size = (float)obs_data_get_double(settings, "keyboard_key_size");
 	keyboard->spacing = (float)obs_data_get_double(settings, "keyboard_spacing");
+	keyboard->font_auto_size = true;
 	keyboard->idle_opacity_pct = (float)obs_data_get_double(settings, "keyboard_idle_opacity");
 	keyboard->active_opacity_pct = (float)obs_data_get_double(settings, "keyboard_active_opacity");
 	const double configured_fade_duration = obs_data_get_double(settings, "keyboard_fade_duration");
 	keyboard->pulse_duration = (float)obs_data_get_double(settings, "keyboard_pulse_duration");
 	keyboard->rotation_deg = (float)obs_data_get_double(settings, "keyboard_rotation");
 	keyboard->tint_color = (uint32_t)obs_data_get_int(settings, "keyboard_tint_color");
-	keyboard->feedback = (int)obs_data_get_int(settings, "keyboard_feedback");
+	keyboard->font_color = obs_data_has_user_value(settings, "keyboard_font_color")
+				       ? (uint32_t)obs_data_get_int(settings, "keyboard_font_color")
+				       : KEY_FONT_COLOR_DEFAULT;
+	keyboard->feedback = KEYBOARD_FEEDBACK_BOTH;
 	if (keyboard->layout_preset < KEYBOARD_LAYOUT_WASD || keyboard->layout_preset >= KEYBOARD_LAYOUT_COUNT)
 		keyboard->layout_preset = KEYBOARD_LAYOUT_WASD;
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
-		keyboard->keys[i].visible = obs_data_has_user_value(settings, key_visibility_settings[i])
-					? obs_data_get_bool(settings, key_visibility_settings[i])
-					: keyboard_key_is_visible_by_preset(keyboard->layout_preset, i);
-		keyboard->keys[i].normalized_x = (float)obs_data_get_double(settings, position_x_settings[i]);
-		keyboard->keys[i].normalized_y = (float)obs_data_get_double(settings, position_y_settings[i]);
-		if (!isfinite(keyboard->keys[i].normalized_x))
-			keyboard->keys[i].normalized_x = 0.0f;
-		if (!isfinite(keyboard->keys[i].normalized_y))
-			keyboard->keys[i].normalized_y = 0.0f;
-		keyboard->keys[i].normalized_x = fminf(fmaxf(keyboard->keys[i].normalized_x, 0.0f), 1.0f);
-		keyboard->keys[i].normalized_y = fminf(fmaxf(keyboard->keys[i].normalized_y, 0.0f), 1.0f);
+		keyboard->keys[i].visible = keyboard_key_is_visible_by_preset(keyboard->layout_preset, i);
+		keyboard->keys[i].normalized_x = (float)(i % 5) / 4.0f;
+		keyboard->keys[i].normalized_y = (float)(i / 5) / 3.0f;
 	}
 
 	if (!isfinite(keyboard->key_size))
@@ -294,8 +240,6 @@ void keyboard_keys_update(struct keyboard_overlay_gg_data *keyboard, obs_data_t 
 	if (!isfinite(keyboard->rotation_deg))
 		keyboard->rotation_deg = KEY_ROTATION_DEFAULT;
 	keyboard->rotation_deg = fminf(fmaxf(keyboard->rotation_deg, KEY_ROTATION_MIN), KEY_ROTATION_MAX);
-	if (keyboard->feedback < KEYBOARD_FEEDBACK_COLOR || keyboard->feedback > KEYBOARD_FEEDBACK_BOTH)
-		keyboard->feedback = KEY_FEEDBACK_DEFAULT;
 	if (arrow_aliases_changed || layout_changed)
 		keyboard->capture_snapshot_initialized = false;
 	if (!keyboard->enabled) {

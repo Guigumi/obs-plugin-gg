@@ -62,15 +62,16 @@ Status: implementacao concluida; validacao funcional em jogos e com multiplas fo
 
 ## Fase 2 - Layouts e configuracao
 
-Status: em andamento; WASD/ESDF, coordenadas normalizadas e visibilidade individual sao a base desta implementacao.
+Status: implementacao concluida; validacao visual manual dos presets ainda pendente.
 
 - Representar cada tecla com codigo de captura, rotulo, posicao, tamanho e estado de visibilidade.
 - Adicionar presets para os layouts definidos na fase inicial, com Numpad limitado as teclas `1` a `5`.
 - Preservar o layout WASD atual como padrao e manter aliases de setas quando aplicavel.
-- Permitir mostrar ou ocultar teclas individualmente.
-- Permitir caracteres personalizados para todas as teclas visiveis.
-- Usar offsets ou coordenadas individuais normalizadas para o modo `Personalizado`.
-- Atualizar automaticamente as dimensoes da fonte conforme layout, tamanho, espacamento e rotacao.
+- Manter todas as teclas do preset visiveis, sem opcoes individuais que limitem a configuracao principal.
+- Permitir somente caracteres personalizados para todas as teclas visiveis.
+- Usar uma disposicao fixa para o modo `Personalizado`; edicao individual de coordenadas fica fora desta iteracao.
+- Ajustar automaticamente o tamanho do rotulo conforme o tamanho da tecla, espacamento e comprimento do texto; a
+  rotacao global nao altera o tamanho local do rotulo.
 - Organizar as propriedades do OBS para evitar uma lista extensa e confusa de campos.
 - Deixar importacao e exportacao do layout personalizado em JSON para a Fase 4.
 

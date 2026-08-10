@@ -44,12 +44,14 @@ struct keyboard_overlay_gg_data {
 	enum keyboard_capture_layout layout_preset;
 	float key_size;
 	float spacing;
+	bool font_auto_size;
 	float idle_opacity_pct;
 	float active_opacity_pct;
 	float fade_duration;
 	float pulse_duration;
 	float rotation_deg;
 	uint32_t tint_color;
+	uint32_t font_color;
 	int feedback;
 	struct keyboard_overlay_key_data keys[KEYBOARD_KEY_COUNT];
 	bool capture_snapshot_initialized;

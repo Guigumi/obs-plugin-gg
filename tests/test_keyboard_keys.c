@@ -73,12 +73,12 @@ static void test_keyboard_visibility(void)
 	keyboard_keys_initialize(&keyboard);
 	obs_data_t *settings = obs_data_create();
 	obs_data_set_bool(settings, "keyboard_enabled", true);
-	obs_data_set_bool(settings, "keyboard_visible_a", false);
 	keyboard_keys_update(&keyboard, settings);
 	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_W].visible);
-	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_A].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_A].visible);
 	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_S].visible);
 	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_D].visible);
+	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_SPACE].visible);
 	obs_data_release(settings);
 }
 
@@ -97,6 +97,22 @@ static void test_keyboard_preset_visibility(void)
 	obs_data_release(settings);
 }
 
+static void test_keyboard_font_auto_size_default(void)
+{
+	struct keyboard_overlay_gg_data keyboard;
+	memset(&keyboard, 0, sizeof(keyboard));
+	keyboard_keys_initialize(&keyboard);
+	obs_data_t *settings = obs_data_create();
+	keyboard_keys_defaults(settings);
+	keyboard_keys_update(&keyboard, settings);
+	ASSERT_TRUE(keyboard.font_auto_size);
+	ASSERT_EQ_INT(0xFFFFFF, keyboard.font_color);
+	obs_data_set_bool(settings, "keyboard_font_auto_size", false);
+	keyboard_keys_update(&keyboard, settings);
+	ASSERT_TRUE(keyboard.font_auto_size);
+	obs_data_release(settings);
+}
+
 int main(void)
 {
 	printf("--- Testes de Teclas e Validacao ---\n");
@@ -106,5 +122,6 @@ int main(void)
 	RUN_TEST(test_keyboard_invalid_values);
 	RUN_TEST(test_keyboard_visibility);
 	RUN_TEST(test_keyboard_preset_visibility);
+	RUN_TEST(test_keyboard_font_auto_size_default);
 	TEST_MAIN_END();
 }

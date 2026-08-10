@@ -10,20 +10,20 @@
 #include <windows.h>
 
 #include <math.h>
+#include <string.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
 #define KEY_EFFECT_SIZE_RATIO (54.0f / 64.0f)
-#define KEY_LABEL_COLOR_DARK 0x202020
-#define KEY_LABEL_COLOR_LIGHT 0xFFFFFF
 #define KEY_LABEL_FONT_SIZE_DEFAULT 36
 #define KEY_LABEL_REFERENCE_SIZE 64.0f
 #define KEY_LABEL_SUPERSAMPLE_MAX 8u
 #define KEY_LABEL_TEXTURE_MAX 512u
 
-static gs_texture_t *keyboard_resources_create_label_texture(const char *text, obs_data_t *font, float key_size)
+static gs_texture_t *keyboard_resources_create_label_texture(const char *text, obs_data_t *font, float key_size,
+									float spacing, bool font_auto_size)
 {
 	if (!text || !*text || !font || key_size <= 0.0f)
 		return NULL;
@@ -54,15 +54,52 @@ static gs_texture_t *keyboard_resources_create_label_texture(const char *text, o
 	HDC dc = CreateCompatibleDC(NULL);
 	HBITMAP bitmap = dc ? CreateDIBSection(dc, &bitmap_info, DIB_RGB_COLORS, &pixels, NULL, 0) : NULL;
 	const int configured_font_size = (int)obs_data_get_int(font, "size");
-	const float relative_font_size =
-		(configured_font_size > 0 ? configured_font_size : KEY_LABEL_FONT_SIZE_DEFAULT) * key_size /
-		KEY_LABEL_REFERENCE_SIZE;
-	const int font_size = (int)fmaxf(1.0f, roundf(relative_font_size * (float)supersample));
+	float relative_font_size;
+	if (font_auto_size) {
+		float ratio = 0.55f;
+		if (spacing < 4.0f)
+			ratio *= 0.9f;
+		const size_t text_length = strlen(text);
+		if (text_length > 3)
+			ratio = fminf(ratio, 0.42f);
+		if (text_length > 5)
+			ratio = fminf(ratio, 0.35f);
+		relative_font_size = key_size * ratio;
+	} else {
+		relative_font_size =
+			(configured_font_size > 0 ? configured_font_size : KEY_LABEL_FONT_SIZE_DEFAULT) * key_size /
+			KEY_LABEL_REFERENCE_SIZE;
+	}
+	int font_size = (int)fmaxf(1.0f, roundf(relative_font_size * (float)supersample));
 	const int64_t font_flags = obs_data_get_int(font, "flags");
 	HFONT gdi_font = CreateFontW(-font_size, 0, 0, 0, (font_flags & OBS_FONT_BOLD) ? FW_BOLD : FW_NORMAL,
 				     (font_flags & OBS_FONT_ITALIC) != 0, (font_flags & OBS_FONT_UNDERLINE) != 0,
 				     (font_flags & OBS_FONT_STRIKEOUT) != 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
 				     CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, wide_face);
+	if (font_auto_size && dc && gdi_font) {
+		HGDIOBJ old_font = SelectObject(dc, gdi_font);
+		SIZE text_size = {0};
+		if (GetTextExtentPoint32W(dc, wide_text, (int)wcslen(wide_text), &text_size) && text_size.cx > 0) {
+			const float max_text_width = texture_size * 0.86f;
+			const float max_text_height = texture_size * 0.86f;
+			const float fit_scale = fminf(max_text_width / (float)text_size.cx,
+						     max_text_height / (float)text_size.cy);
+			if (fit_scale < 1.0f) {
+				font_size = (int)fmaxf(1.0f, floorf(font_size * fit_scale));
+				SelectObject(dc, old_font);
+				DeleteObject(gdi_font);
+				gdi_font = CreateFontW(-font_size, 0, 0, 0,
+						       (font_flags & OBS_FONT_BOLD) ? FW_BOLD : FW_NORMAL,
+						       (font_flags & OBS_FONT_ITALIC) != 0,
+						       (font_flags & OBS_FONT_UNDERLINE) != 0,
+						       (font_flags & OBS_FONT_STRIKEOUT) != 0, DEFAULT_CHARSET,
+						       OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+						       DEFAULT_PITCH | FF_DONTCARE, wide_face);
+				old_font = SelectObject(dc, gdi_font);
+			}
+		}
+		SelectObject(dc, old_font);
+	}
 	gs_texture_t *texture = NULL;
 	if (dc && bitmap && pixels && gdi_font) {
 		HGDIOBJ old_bitmap = SelectObject(dc, bitmap);
@@ -110,7 +147,8 @@ void keyboard_resources_update_labels(struct keyboard_overlay_gg_data *keyboard,
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		struct keyboard_overlay_key_data *key = &keyboard->keys[i];
 		const char *text = keyboard_keys_get_character(keyboard, settings, i);
-		gs_texture_t *texture = keyboard_resources_create_label_texture(text, font, keyboard->key_size);
+		gs_texture_t *texture = keyboard_resources_create_label_texture(text, font, keyboard->key_size,
+										keyboard->spacing, keyboard->font_auto_size);
 		obs_enter_graphics();
 		gs_texture_destroy(key->label_texture);
 		key->label_texture = texture;
@@ -198,12 +236,6 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 	float border_opacities[KEYBOARD_KEY_COUNT];
 	bool has_circle = false;
 	bool has_border = false;
-
-	const float tint_red = (float)(keyboard->tint_color & 0xFF) / 255.0f;
-	const float tint_green = (float)((keyboard->tint_color >> 8) & 0xFF) / 255.0f;
-	const float tint_blue = (float)((keyboard->tint_color >> 16) & 0xFF) / 255.0f;
-	const float tint_luminance = tint_red * 0.2126f + tint_green * 0.7152f + tint_blue * 0.0722f;
-	const uint32_t label_color = tint_luminance > 0.55f ? KEY_LABEL_COLOR_DARK : KEY_LABEL_COLOR_LIGHT;
 
 	for (size_t key = 0; key < KEYBOARD_KEY_COUNT; key++) {
 		const struct keyboard_overlay_key_data *key_data = &keyboard->keys[key];
@@ -301,7 +333,7 @@ void keyboard_resources_render(struct keyboard_overlay_gg_data *keyboard)
 		gs_technique_end(keyboard->effect_border_technique);
 	}
 
-	vec4_from_rgba(&tint, label_color | 0xFF000000);
+	vec4_from_rgba(&tint, keyboard->font_color | 0xFF000000);
 	gs_effect_set_vec4(keyboard->effect_tint, &tint);
 	keyboard_resources_prepare_draw(keyboard->effect_image, keyboard->effect_opacity,
 					keyboard->keys[0].label_texture);
