@@ -143,17 +143,51 @@ static gs_texture_t *keyboard_resources_create_label_texture(const char *text, o
 	return texture;
 }
 
+static uint64_t keyboard_resources_hash_bytes(uint64_t hash, const void *data, size_t size)
+{
+	const uint8_t *bytes = data;
+	for (size_t i = 0; i < size; i++)
+		hash = (hash ^ bytes[i]) * 1099511628211ULL;
+	return hash;
+}
+
+static uint64_t keyboard_resources_label_cache_key(const char *text, const char *face, int64_t font_size,
+								   int64_t font_flags, float width, float height)
+{
+	uint64_t hash = 1469598103934665603ULL;
+	hash = keyboard_resources_hash_bytes(hash, text, strlen(text) + 1);
+	hash = keyboard_resources_hash_bytes(hash, face, strlen(face) + 1);
+	hash = keyboard_resources_hash_bytes(hash, &font_size, sizeof(font_size));
+	hash = keyboard_resources_hash_bytes(hash, &font_flags, sizeof(font_flags));
+	uint32_t width_bits;
+	uint32_t height_bits;
+	memcpy(&width_bits, &width, sizeof(width_bits));
+	memcpy(&height_bits, &height, sizeof(height_bits));
+	hash = keyboard_resources_hash_bytes(hash, &width_bits, sizeof(width_bits));
+	hash = keyboard_resources_hash_bytes(hash, &height_bits, sizeof(height_bits));
+	return hash;
+}
+
 void keyboard_resources_update_labels(struct keyboard_overlay_gg_data *keyboard, obs_data_t *settings)
 {
 	obs_data_t *font = obs_data_get_obj(settings, "keyboard_font");
+	const char *face = font ? obs_data_get_string(font, "face") : "";
+	const int64_t font_size = font ? obs_data_get_int(font, "size") : 0;
+	const int64_t font_flags = font ? obs_data_get_int(font, "flags") : 0;
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		struct keyboard_overlay_key_data *key = &keyboard->keys[i];
 		const char *text = keyboard_keys_get_character(keyboard, settings, i);
+		const uint64_t cache_key = keyboard_resources_label_cache_key(text, face ? face : "", font_size,
+										 font_flags, key->width, key->height);
+		if (key->label_cache_valid && key->label_cache_key == cache_key)
+			continue;
 		gs_texture_t *texture = keyboard_resources_create_label_texture(text, font, key->width, key->height,
 										keyboard->spacing, keyboard->font_auto_size);
 		obs_enter_graphics();
 		gs_texture_destroy(key->label_texture);
 		key->label_texture = texture;
+		key->label_cache_key = cache_key;
+		key->label_cache_valid = !*text || texture != NULL;
 		obs_leave_graphics();
 		if (*text && !texture)
 			blog(LOG_WARNING, "Failed to render keyboard character: %s", text);

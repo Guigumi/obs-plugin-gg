@@ -65,8 +65,10 @@ Após medir o comportamento do plugin, vamos decidir quais recursos valem o cust
 
 - A estrutura foi separada em módulos.
 - A captura Raw Input, o fallback e o compartilhamento de estado estão implementados.
+- O Enter normal e o Enter do teclado numérico compartilham o mesmo input por decisão de compatibilidade.
 - Os quatro layouts e as propriedades dinâmicas estão implementados.
 - Teclas normais, horizontais, barra de espaço e teclas verticais estão implementadas.
+- Texturas de rótulo são reutilizadas quando texto, fonte, tamanho e dimensões não mudam.
 - O build `RelWithDebInfo` e os testes automatizados estão passando.
 - A validação visual e funcional no OBS ainda está pendente e bloqueia o lançamento.
 

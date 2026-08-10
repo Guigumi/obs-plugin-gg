@@ -31,8 +31,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define RAW_INPUT_EVENT_TIMEOUT_MS 100u
 #define KEYBOARD_FALLBACK_POLL_MS 5u
 #define RAW_INPUT_DEVICE_MAX 32u
-#define KEYBOARD_VIRTUAL_NUMPAD_ENTER 256u
-#define KEYBOARD_VIRTUAL_KEY_COUNT 512u
 
 static int keyboard_key_virtual_key(enum keyboard_overlay_key key)
 {
@@ -140,20 +138,20 @@ static int keyboard_key_virtual_key(enum keyboard_overlay_key key)
 	case KEYBOARD_KEY_NUMPAD_3: return VK_NUMPAD3;
 	case KEYBOARD_KEY_NUMPAD_0: return VK_NUMPAD0;
 	case KEYBOARD_KEY_NUMPAD_DECIMAL: return VK_DECIMAL;
-	case KEYBOARD_KEY_NUMPAD_ENTER: return KEYBOARD_VIRTUAL_NUMPAD_ENTER;
+	case KEYBOARD_KEY_NUMPAD_ENTER: return VK_RETURN;
 	default: return -1;
 	}
 }
 
 static SRWLOCK capture_lock = SRWLOCK_INIT;
-static bool physical_states[KEYBOARD_VIRTUAL_KEY_COUNT];
+static bool physical_states[256];
 static bool logical_states[KEYBOARD_KEY_COUNT];
 static bool alias_states[4];
 static long logical_press_sequences[KEYBOARD_KEY_COUNT];
 static long alias_press_sequences[4];
 struct raw_keyboard_state {
 	HANDLE device;
-	bool physical_states[KEYBOARD_VIRTUAL_KEY_COUNT];
+	bool physical_states[256];
 };
 static struct raw_keyboard_state raw_keyboards[RAW_INPUT_DEVICE_MAX];
 static HANDLE raw_input_thread;
@@ -191,7 +189,7 @@ static void update_logical_states(void)
 
 static void update_physical_key(unsigned int virtual_key, bool down)
 {
-	if (virtual_key >= KEYBOARD_VIRTUAL_KEY_COUNT || physical_states[virtual_key] == down)
+	if (virtual_key >= 256 || physical_states[virtual_key] == down)
 		return;
 	physical_states[virtual_key] = down;
 	update_logical_states();
@@ -206,14 +204,12 @@ static unsigned int keyboard_normalize_raw_virtual_key(const RAWKEYBOARD *keyboa
 		return extended ? VK_RCONTROL : VK_LCONTROL;
 	if (keyboard->VKey == VK_MENU)
 		return extended ? VK_RMENU : VK_LMENU;
-	if (keyboard->VKey == VK_RETURN && extended)
-		return KEYBOARD_VIRTUAL_NUMPAD_ENTER;
 	return keyboard->VKey;
 }
 
 static void update_raw_key(HANDLE device, unsigned int virtual_key, bool down)
 {
-	if (virtual_key >= KEYBOARD_VIRTUAL_KEY_COUNT)
+	if (virtual_key >= 256)
 		return;
 
 	AcquireSRWLockExclusive(&capture_lock);
@@ -265,7 +261,7 @@ static void reconcile_wasd_states(void)
 	AcquireSRWLockExclusive(&capture_lock);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		const int virtual_key = keyboard_key_virtual_key((enum keyboard_overlay_key)i);
-		if (virtual_key >= 0 && virtual_key != KEYBOARD_VIRTUAL_NUMPAD_ENTER)
+		if (virtual_key >= 0)
 			update_physical_key((unsigned int)virtual_key, key_down(virtual_key));
 	}
 	update_physical_key(VK_UP, key_down(VK_UP));

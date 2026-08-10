@@ -16,6 +16,8 @@ struct keyboard_overlay_key_data {
 	enum keyboard_overlay_key capture_key;
 	const char *character_setting;
 	gs_texture_t *label_texture;
+	uint64_t label_cache_key;
+	bool label_cache_valid;
 	float x;
 	float y;
 	float width;
