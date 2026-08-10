@@ -32,15 +32,27 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define KEYBOARD_FALLBACK_POLL_MS 5u
 #define RAW_INPUT_DEVICE_MAX 32u
 
-static const int wasd_virtual_keys[KEYBOARD_KEY_COUNT] = {'W', 'A', 'S', 'D'};
+static const int default_virtual_keys[KEYBOARD_KEY_COUNT] = {
+	'W', 'A', 'S', 'D', VK_SPACE, VK_LSHIFT, VK_LCONTROL, 'Q', 'E', 'R', 'F', VK_TAB, VK_CAPITAL,
+	'1', '2', '3', '4', '5',
+};
+static const int esdf_virtual_keys[KEYBOARD_KEY_COUNT] = {
+	'E', 'S', 'D', 'F', VK_SPACE, VK_LSHIFT, VK_LCONTROL, 'Q', 'E', 'R', 'F', VK_TAB, VK_CAPITAL,
+	'1', '2', '3', '4', '5',
+};
 static const int arrow_virtual_keys[KEYBOARD_KEY_COUNT] = {VK_UP, VK_LEFT, VK_DOWN, VK_RIGHT};
+static const int numpad_virtual_keys[KEYBOARD_KEY_COUNT] = {VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5};
 
 static SRWLOCK capture_lock = SRWLOCK_INIT;
 static bool physical_states[256];
 static bool wasd_states[KEYBOARD_KEY_COUNT];
+static bool esdf_states[KEYBOARD_KEY_COUNT];
 static bool alias_states[KEYBOARD_KEY_COUNT];
+static bool numpad_states[KEYBOARD_KEY_COUNT];
 static long wasd_press_sequences[KEYBOARD_KEY_COUNT];
+static long esdf_press_sequences[KEYBOARD_KEY_COUNT];
 static long alias_press_sequences[KEYBOARD_KEY_COUNT];
+static long numpad_press_sequences[KEYBOARD_KEY_COUNT];
 struct raw_keyboard_state {
 	HANDLE device;
 	bool physical_states[256];
@@ -62,14 +74,22 @@ static bool key_down(int virtual_key)
 static void update_logical_states(void)
 {
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
-		const bool wasd_down = physical_states[wasd_virtual_keys[i]];
+		const bool wasd_down = physical_states[default_virtual_keys[i]];
+		const bool esdf_down = physical_states[esdf_virtual_keys[i]];
 		const bool alias_down = wasd_down || physical_states[arrow_virtual_keys[i]];
+		const bool numpad_down = i < 5 && physical_states[numpad_virtual_keys[i]];
 		if (wasd_down && !wasd_states[i])
 			wasd_press_sequences[i]++;
+		if (esdf_down && !esdf_states[i])
+			esdf_press_sequences[i]++;
 		if (alias_down && !alias_states[i])
 			alias_press_sequences[i]++;
+		if (numpad_down && !numpad_states[i])
+			numpad_press_sequences[i]++;
 		wasd_states[i] = wasd_down;
+		esdf_states[i] = esdf_down;
 		alias_states[i] = alias_down;
+		numpad_states[i] = numpad_down;
 	}
 }
 
@@ -125,7 +145,9 @@ static void reset_pressed_states(void)
 	AcquireSRWLockExclusive(&capture_lock);
 	memset(physical_states, 0, sizeof(physical_states));
 	memset(wasd_states, 0, sizeof(wasd_states));
+	memset(esdf_states, 0, sizeof(esdf_states));
 	memset(alias_states, 0, sizeof(alias_states));
+	memset(numpad_states, 0, sizeof(numpad_states));
 	memset(raw_keyboards, 0, sizeof(raw_keyboards));
 	ReleaseSRWLockExclusive(&capture_lock);
 }
@@ -134,8 +156,11 @@ static void reconcile_wasd_states(void)
 {
 	AcquireSRWLockExclusive(&capture_lock);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
-		update_physical_key((unsigned int)wasd_virtual_keys[i], key_down(wasd_virtual_keys[i]));
+		update_physical_key((unsigned int)default_virtual_keys[i], key_down(default_virtual_keys[i]));
+		update_physical_key((unsigned int)esdf_virtual_keys[i], key_down(esdf_virtual_keys[i]));
 		update_physical_key((unsigned int)arrow_virtual_keys[i], key_down(arrow_virtual_keys[i]));
+		if (i < 5)
+			update_physical_key((unsigned int)numpad_virtual_keys[i], key_down(numpad_virtual_keys[i]));
 	}
 	ReleaseSRWLockExclusive(&capture_lock);
 }
@@ -374,15 +399,27 @@ void keyboard_capture_shutdown(void)
 	}
 }
 
-void keyboard_capture_sample_wasd(bool arrow_aliases, struct keyboard_capture_snapshot *snapshot)
+void keyboard_capture_sample(enum keyboard_capture_layout layout, bool arrow_aliases,
+				     struct keyboard_capture_snapshot *snapshot)
 {
 	if (!InterlockedCompareExchange(&raw_input_available, 0, 0))
 		sample_fallback();
 
 	AcquireSRWLockShared(&capture_lock);
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
-		snapshot->pressed[i] = arrow_aliases ? alias_states[i] : wasd_states[i];
-		snapshot->press_sequences[i] = arrow_aliases ? alias_press_sequences[i] : wasd_press_sequences[i];
+		if (layout == KEYBOARD_LAYOUT_ESDF) {
+			snapshot->pressed[i] = esdf_states[i];
+			snapshot->press_sequences[i] = esdf_press_sequences[i];
+		} else if (layout == KEYBOARD_LAYOUT_ARROWS) {
+			snapshot->pressed[i] = i < 4 && physical_states[arrow_virtual_keys[i]];
+			snapshot->press_sequences[i] = alias_press_sequences[i];
+		} else if (layout == KEYBOARD_LAYOUT_NUMPAD) {
+			snapshot->pressed[i] = numpad_states[i];
+			snapshot->press_sequences[i] = numpad_press_sequences[i];
+		} else {
+			snapshot->pressed[i] = arrow_aliases ? alias_states[i] : wasd_states[i];
+			snapshot->press_sequences[i] = arrow_aliases ? alias_press_sequences[i] : wasd_press_sequences[i];
+		}
 	}
 	ReleaseSRWLockShared(&capture_lock);
 }

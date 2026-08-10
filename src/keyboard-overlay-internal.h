@@ -20,6 +20,8 @@ struct keyboard_overlay_key_data {
 	float y;
 	float width;
 	float height;
+	float normalized_x;
+	float normalized_y;
 	bool visible;
 	bool pressed;
 	long press_sequence;
@@ -39,6 +41,7 @@ struct keyboard_overlay_gg_data {
 
 	bool enabled;
 	bool arrow_aliases;
+	enum keyboard_capture_layout layout_preset;
 	float key_size;
 	float spacing;
 	float idle_opacity_pct;

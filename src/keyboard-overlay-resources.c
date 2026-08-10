@@ -109,7 +109,7 @@ void keyboard_resources_update_labels(struct keyboard_overlay_gg_data *keyboard,
 	obs_data_t *font = obs_data_get_obj(settings, "keyboard_font");
 	for (size_t i = 0; i < KEYBOARD_KEY_COUNT; i++) {
 		struct keyboard_overlay_key_data *key = &keyboard->keys[i];
-		const char *text = obs_data_get_string(settings, key->character_setting);
+		const char *text = keyboard_keys_get_character(keyboard, settings, i);
 		gs_texture_t *texture = keyboard_resources_create_label_texture(text, font, keyboard->key_size);
 		obs_enter_graphics();
 		gs_texture_destroy(key->label_texture);

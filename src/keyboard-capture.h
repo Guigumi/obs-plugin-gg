@@ -25,7 +25,30 @@ enum keyboard_overlay_key {
 	KEYBOARD_KEY_A,
 	KEYBOARD_KEY_S,
 	KEYBOARD_KEY_D,
+	KEYBOARD_KEY_SPACE,
+	KEYBOARD_KEY_SHIFT,
+	KEYBOARD_KEY_CTRL,
+	KEYBOARD_KEY_Q,
+	KEYBOARD_KEY_E,
+	KEYBOARD_KEY_R,
+	KEYBOARD_KEY_F,
+	KEYBOARD_KEY_TAB,
+	KEYBOARD_KEY_CAPS,
+	KEYBOARD_KEY_1,
+	KEYBOARD_KEY_2,
+	KEYBOARD_KEY_3,
+	KEYBOARD_KEY_4,
+	KEYBOARD_KEY_5,
 	KEYBOARD_KEY_COUNT,
+};
+
+enum keyboard_capture_layout {
+	KEYBOARD_LAYOUT_WASD,
+	KEYBOARD_LAYOUT_ESDF,
+	KEYBOARD_LAYOUT_ARROWS,
+	KEYBOARD_LAYOUT_NUMPAD,
+	KEYBOARD_LAYOUT_CUSTOM,
+	KEYBOARD_LAYOUT_COUNT,
 };
 
 struct keyboard_capture_snapshot {
@@ -38,4 +61,5 @@ void keyboard_capture_shutdown(void);
 
 /* Every source receives the same state and press sequences. With Raw Input, a
  * sequence also preserves a complete press that occurs between source ticks. */
-void keyboard_capture_sample_wasd(bool arrow_aliases, struct keyboard_capture_snapshot *snapshot);
+void keyboard_capture_sample(enum keyboard_capture_layout layout, bool arrow_aliases,
+				     struct keyboard_capture_snapshot *snapshot);

@@ -14,8 +14,10 @@ const char *obs_module_text(const char *text)
 	return text;
 }
 
-void keyboard_capture_sample_wasd(bool arrow_aliases, struct keyboard_capture_snapshot *snapshot)
+void keyboard_capture_sample(enum keyboard_capture_layout layout, bool arrow_aliases,
+				     struct keyboard_capture_snapshot *snapshot)
 {
+	(void)layout;
 	(void)arrow_aliases;
 	memset(snapshot, 0, sizeof(*snapshot));
 }

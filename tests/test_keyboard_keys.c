@@ -82,6 +82,21 @@ static void test_keyboard_visibility(void)
 	obs_data_release(settings);
 }
 
+static void test_keyboard_preset_visibility(void)
+{
+	struct keyboard_overlay_gg_data keyboard;
+	memset(&keyboard, 0, sizeof(keyboard));
+	keyboard_keys_initialize(&keyboard);
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_bool(settings, "keyboard_enabled", true);
+	obs_data_set_int(settings, "keyboard_layout_preset", KEYBOARD_LAYOUT_NUMPAD);
+	keyboard_keys_update(&keyboard, settings);
+	ASSERT_FALSE(keyboard.keys[KEYBOARD_KEY_W].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_1].visible);
+	ASSERT_TRUE(keyboard.keys[KEYBOARD_KEY_5].visible);
+	obs_data_release(settings);
+}
+
 int main(void)
 {
 	printf("--- Testes de Teclas e Validacao ---\n");
@@ -90,5 +105,6 @@ int main(void)
 	RUN_TEST(test_keyboard_fade_default_and_clamping);
 	RUN_TEST(test_keyboard_invalid_values);
 	RUN_TEST(test_keyboard_visibility);
+	RUN_TEST(test_keyboard_preset_visibility);
 	TEST_MAIN_END();
 }

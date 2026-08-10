@@ -62,17 +62,17 @@ Status: implementacao concluida; validacao funcional em jogos e com multiplas fo
 
 ## Fase 2 - Layouts e configuracao
 
-Status: em andamento; modelo interno por tecla e visibilidade individual concluidos para o layout WASD atual.
+Status: em andamento; WASD/ESDF, coordenadas normalizadas e visibilidade individual sao a base desta implementacao.
 
 - Representar cada tecla com codigo de captura, rotulo, posicao, tamanho e estado de visibilidade.
-- Adicionar presets para os layouts definidos na fase inicial.
+- Adicionar presets para os layouts definidos na fase inicial, com Numpad limitado as teclas `1` a `5`.
 - Preservar o layout WASD atual como padrao e manter aliases de setas quando aplicavel.
 - Permitir mostrar ou ocultar teclas individualmente.
 - Permitir caracteres personalizados para todas as teclas visiveis.
-- Avaliar offsets ou coordenadas individuais para o modo `Personalizado`.
+- Usar offsets ou coordenadas individuais normalizadas para o modo `Personalizado`.
 - Atualizar automaticamente as dimensoes da fonte conforme layout, tamanho, espacamento e rotacao.
 - Organizar as propriedades do OBS para evitar uma lista extensa e confusa de campos.
-- Avaliar importacao e exportacao do layout personalizado em JSON somente se o editor justificar essa complexidade.
+- Deixar importacao e exportacao do layout personalizado em JSON para a Fase 4.
 
 ## Fase 3 - Aparencia procedural
 
@@ -86,6 +86,7 @@ Status: em andamento; modelo interno por tecla e visibilidade individual conclui
 
 ## Fase 4 - Desempenho e robustez
 
+- Avaliar importacao e exportacao do layout personalizado em JSON.
 - Recriar texturas de rotulo apenas quando fonte, texto ou tamanho efetivamente mudarem.
 - Evitar chamadas GDI e operacoes graficas redundantes durante atualizacoes de propriedades.
 - Validar limites e valores nao finitos de todas as novas configuracoes.
@@ -113,6 +114,7 @@ Status: em andamento; modelo interno por tecla e visibilidade individual conclui
 - Verificar logs por erros de shader, fonte, textura, hook, handle ou recurso nao liberado.
 - Confirmar que a captura do teclado nao interfere no Raw Input do mouse ou em outros plugins.
 - Revisar o diff completo e executar build `RelWithDebInfo` antes da instalacao.
+- Validacao visual dos layouts sera manual no OBS; nao sera criada captura automatizada de screenshots.
 
 ## Criterios de conclusao
 
