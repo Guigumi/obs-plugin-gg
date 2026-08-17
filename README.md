@@ -20,6 +20,8 @@ Neither is a filter. You add them as sources, the same way you'd add a browser o
 3. Close OBS Studio and run the installer as administrator.
 4. Start OBS again after the installation finishes.
 
+> **Note on Windows Defender / SmartScreen:** Because this is a new, open-source tool that hooks into keyboard/mouse inputs, Windows might flag the installer. This is a false positive. You can safely click "More info" -> "Run anyway", or compile the plugin from source yourself.
+
 OBS is the only dependency. No extra programs or drivers required.
 
 ## Quick start

@@ -31,7 +31,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
 
 [Files]
-Source: "build_x64\RelWithDebInfo\mouse-overlay-gg.dll"; DestDir: "{app}\bin\64bit"; Flags: ignoreversion
+Source: "build_x64\Release\mouse-overlay-gg.dll"; DestDir: "{app}\bin\64bit"; Flags: ignoreversion
 Source: "data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [UninstallDelete]

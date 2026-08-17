@@ -2,7 +2,18 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $solution = Join-Path $root "build_x64\mouse-overlay-gg.sln"
-$msbuild = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+$msbuildCmd = Get-Command "msbuild.exe" -ErrorAction SilentlyContinue
+if ($msbuildCmd) {
+    $msbuild = $msbuildCmd.Source
+} else {
+    $msbuildCandidates = @(
+        "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+        "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+        "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
+        "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+    )
+    $msbuild = $msbuildCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+}
 $isccCandidates = @(
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
     "C:\Program Files\Inno Setup 6\ISCC.exe",
@@ -17,16 +28,16 @@ if (!$iscc) {
 	throw "Inno Setup is not installed"
 }
 
-& $msbuild $solution -t:Build -p:Configuration=RelWithDebInfo -m -v:minimal
+& $msbuild $solution -t:Build -p:Configuration=Release -m -v:minimal
 if ($LASTEXITCODE -ne 0) {
     throw "Build failed with exit code $LASTEXITCODE"
 }
 
 $tests = @(
-    "build_x64\tests\RelWithDebInfo\test_keyboard_layout.exe",
-    "build_x64\tests\RelWithDebInfo\test_keyboard_keys.exe",
-    "build_x64\tests\RelWithDebInfo\test_mouse_click.exe",
-    "build_x64\tests\RelWithDebInfo\test_mouse_trail.exe"
+    "build_x64\tests\Release\test_keyboard_layout.exe",
+    "build_x64\tests\Release\test_keyboard_keys.exe",
+    "build_x64\tests\Release\test_mouse_click.exe",
+    "build_x64\tests\Release\test_mouse_trail.exe"
 )
 $obsTestBin = "C:\Program Files\obs-studio\bin\64bit"
 if (!(Test-Path -LiteralPath $obsTestBin)) {

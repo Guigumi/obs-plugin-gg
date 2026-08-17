@@ -1,0 +1,31 @@
+name: Build Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Inno Setup
+        run: choco install innosetup
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build and create installer
+        run: .\build-release.ps1
+
+      - name: Upload Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Input_Overlay_GG_Installer
+          path: release/Input_overlay_gg_*_Setup.exe
