@@ -18,6 +18,9 @@
 !LICENSE
 !README.md
 !PLAN.md
+!PLAN-LINUX.md
+!/docs/
+!/docs/**
 !/tests/
 !/tests/**
 
